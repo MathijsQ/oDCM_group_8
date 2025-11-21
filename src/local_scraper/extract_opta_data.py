@@ -1,79 +1,96 @@
 import os
+import csv
+import re
 from bs4 import BeautifulSoup
 from datetime import datetime
-import re
-import csv
 
-def extract_opta_matches(file_path):
-    with open(file_path, encoding="utf-8") as f:
-        soup = BeautifulSoup(f, "html.parser")
-
-    competition = None
-    comp_link = soup.find("a", class_=re.compile("Opta-MatchLink"))
-    if comp_link:
-        match = re.search(r'/soccer/([^/]+)-', comp_link.get('href', ''))
-        if match:
-            competition = match.group(1).replace('-', ' ').title()
-        else:
-            competition = comp_link.text.strip()
-
-    matches = soup.find_all("tbody", class_=re.compile(r"Opta-fixture.*Opta-Match-"))
-    result = []
-    for match_tb in matches:
-        match_id = match_tb.get("data-match")
-        date_epoch = match_tb.get("data-date")
-        match_date = (datetime.utcfromtimestamp(int(date_epoch)/1000).strftime("%d%m%y")
-                      if date_epoch else "NA")
-
-        # Robust home/away team extraction
-        home_team_td = match_tb.find("td", string=re.compile(r".+"))  # gets first td with text
-        away_team_td = None
-        # Find all <td>s and get those that contain team names/away designation
-        td_candidates = match_tb.find_all("td")
-        for td in td_candidates:
-            td_class = td.get("class", [])
-            td_text = td.text.strip()
-            if td_class and "Opta-TeamName" in td_class:
-                if "Home" in " ".join(td_class):
-                    home_team_td = td
-                elif "Away" in " ".join(td_class):
-                    away_team_td = td
-
-        home_name = home_team_td.text.strip() if home_team_td else "NA"
-        away_name = away_team_td.text.strip() if away_team_td else "NA"
-
-        home_score_td = match_tb.find("td", class_=re.compile("Opta-Team-Left"))
-        away_score_td = match_tb.find("td", class_=re.compile("Opta-Team-Right"))
-        home_score_span = home_score_td.find("span", class_=re.compile("Opta-Team-Score")) if home_score_td else None
-        away_score_span = away_score_td.find("span", class_=re.compile("Opta-Team-Score")) if away_score_td else None
-        home_goals = home_score_span.text.strip() if home_score_span else "NA"
-        away_goals = away_score_span.text.strip() if away_score_span else "NA"
-
-        home_code = ''.join(word[0].upper() for word in home_name.split() if word)
-        away_code = ''.join(word[0].upper() for word in away_name.split() if word)
-        comp_code = ''.join(word[0].upper() for word in competition.split()) if competition else "NA"
-        unique_id = f"{home_code}_{away_code}_{match_date}_{comp_code}"
-
-        result.append([
-            unique_id, home_name, away_name, home_goals, away_goals, match_date, competition
-        ])
-    return result
-
-# Folder path (relative to extract_match_data.py)
 folder_path = "../../data/html"
-all_results = []
+csv_path = "../../data/all_match_data.csv"
+
+def clean_team_name(name):
+    name = re.sub(r'^[\W.]+', '', name)   # Remove leading non-word chars and periods
+    name = re.sub(r'[\W.]+$', '', name)   # Remove trailing non-word chars and periods
+    name = re.sub(r'\d+', '', name)       # Remove digits
+    return name.strip()
+
+def get_team_abbr(name):
+    name = clean_team_name(name)
+    words = [w for w in name.split() if w.isalpha() or w.isalnum()]
+    abbr = '_'.join([w[:3].upper() for w in words[:2]]) if len(words) >= 2 else name[:3].upper()
+    return abbr
+
+def get_comp_code(compname):
+    words = [w for w in compname.split() if w.isalpha()]
+    code = ''.join([w[0].upper() for w in words[:2]]) if len(words) >= 2 else compname[:2].upper()
+    return code
+
+def extract_match_date(soup, filename):
+    candidates = soup.find_all(["span", "td", "div"])
+    raw_texts = [c.get_text(" ", strip=True) for c in candidates] + [soup.get_text(" ", strip=True), filename]
+    patterns = [r'(\d{1,2} [A-Za-z]+ \d{4})', r'(\d{2}/\d{2}/\d{4})', r'(\d{2}-\d{2}-\d{4})']
+    for txt in raw_texts:
+        for pat in patterns:
+            found = re.search(pat, txt)
+            if found:
+                date_text = found.group(1)
+                try:
+                    if '-' in date_text:
+                        dt = datetime.strptime(date_text, "%d-%m-%Y")
+                    elif '/' in date_text:
+                        dt = datetime.strptime(date_text, "%d/%m/%Y")
+                    else:
+                        dt = datetime.strptime(date_text, "%d %B %Y")
+                    return dt.strftime("%d%m%y")
+                except: continue
+    # Fallback: look for yymmdd in filename
+    fname_found = re.search(r'(\d{6})', filename)
+    return fname_found.group(1) if fname_found else "NA"
+
+results = []
 
 for filename in os.listdir(folder_path):
     if filename.endswith(".html"):
         file_path = os.path.join(folder_path, filename)
-        match_data = extract_opta_matches(file_path)
-        all_results.extend(match_data)
+        with open(file_path, encoding="utf-8") as f:
+            soup = BeautifulSoup(f, "html.parser")
 
-# Output file in the same folder as the script
-csv_path = "../../data/all_match_data.csv"
+        # Always define defaults before extracting
+        home_team, away_team, home_goals, away_goals = "NA", "NA", "NA", "NA"
+        match_date, comp_name, comp_code = "NA", "Unknown", "UN"
+
+        header_table = soup.find("table", class_=re.compile("Opta-MatchHeader"))
+        if header_table:
+            for td in header_table.find_all("td"):
+                td_class = td.get("class", [])
+                td_text = td.get_text(strip=True)
+                if "Opta-TeamName" in td_class:
+                    if any("Home" in c for c in td_class):
+                        home_team = clean_team_name(td_text)
+                    elif any("Away" in c for c in td_class):
+                        away_team = clean_team_name(td_text)
+            score_spans = header_table.find_all("span", class_=re.compile("Opta-Team-Score"))
+            if len(score_spans) >= 2:
+                home_goals = score_spans[0].get_text(strip=True)
+                away_goals = score_spans[1].get_text(strip=True)
+            elif len(score_spans) == 1:
+                home_goals = score_spans[0].get_text(strip=True)
+                away_goals = "NA"
+
+        match_date = extract_match_date(soup, filename)
+
+        comp_patterns = r"Premier League|Bundesliga|Serie A|Primera División|Ligue 1|La Liga|Championship|Eredivisie|Süper Lig|European"
+        comp_tag = soup.find(string=re.compile(comp_patterns))
+        comp_name = comp_tag.strip() if comp_tag else "Unknown"
+        comp_code = get_comp_code(comp_name)
+
+        match_id = f"{get_team_abbr(home_team)}_{get_team_abbr(away_team)}_{match_date}_{comp_code}"
+
+        results.append([match_id, home_team, home_goals, away_goals, away_team, match_date, comp_name, filename])
+
 with open(csv_path, "w", newline='', encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(["MatchID", "HomeTeam", "AwayTeam", "HomeGoals", "AwayGoals", "MatchDate", "Competition"])
-    writer.writerows(all_results)
+    writer.writerow(["MatchID", "HomeTeam", "HomeGoals", "AwayGoals", "AwayTeam", "MatchDate", "Competition", "Filename"])
+    writer.writerows(results)
 
-print(f"Done! Processed {len(all_results)} matches from {len(os.listdir(folder_path))} HTML files.")
+print(f"Done! Processed {len(results)} matches from {len(os.listdir(folder_path))} HTML files.")
+
