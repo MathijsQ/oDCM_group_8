@@ -3,9 +3,47 @@ import csv
 from bs4 import BeautifulSoup
 from datetime import datetime
 import re
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaFileUpload
+from google.oauth2.service_account import Credentials
+from dotenv import load_dotenv
+from google_auth_oauthlib.flow import InstalledAppFlow
+
+# === Connect to Google API
+# Load .env file
+env_path = '../../.env'
+env_folder = '../../'
+load_dotenv(env_path)
+
+# Read .env variables
+json_relative = os.getenv("GOOGLE_APPLICATION_CREDENTIALS")
+sheet_id = os.getenv("SPREADSHEET_ID")
+scraper_id = os.getenv("SCRAPER_ID")  
+
+# Create filepath of Google API JSON key
+json_full_path = os.path.join(env_folder, json_relative)
+
+# Build credentials with Drive + Sheets scope
+scopes = [
+    "https://www.googleapis.com/auth/spreadsheets",
+    "https://www.googleapis.com/auth/drive"
+]
+
+oauth_path = os.path.join(env_folder, os.getenv("OAUTH_CLIENT"))
+
+flow = InstalledAppFlow.from_client_secrets_file(
+    oauth_path,
+    scopes=scopes
+)
+
+# This opens a browser ONCE
+creds = flow.run_local_server(port=0)
+
+# Create Drive service for uploading
+drive_service = build("drive", "v3", credentials=creds)
 
 folder_path = "../../data/html/odds_portal"
-csv_path = "../../data/oddsportal/oddsportal_ah_data.csv"
+csv_path = "../../data/oddsportal/oddsportal_data.csv"
 
 def extract_teams_from_participants(soup):
     participants = soup.find('div', {'data-testid': 'game-participants'})
@@ -93,3 +131,37 @@ with open(csv_path, "w", newline='', encoding="utf-8") as f:
     writer.writerows(all_rows)
 
 print(f"Done! Extracted Asian handicap and over/under odds and meta-data from {len(os.listdir(folder_path))} matches out of the total {len(os.listdir(folder_path))} files.")
+
+# CSV file produced by your scraper
+local_path = csv_path   # e.g. "../../data/opta/match_data.csv"
+
+# Extract just the filename
+base_name = os.path.basename(local_path)     # "match_data.csv"
+
+# Read scraper ID and Drive folder ID from .env
+scraper_id = os.getenv("SCRAPER_ID")
+folder_id  = os.getenv("DRIVE_ID")
+
+# Insert scraper ID into the filename before uploading
+# match_data.csv → match_data_geert.csv
+name_parts = os.path.splitext(base_name)
+drive_filename = f"{name_parts[0]}_{scraper_id}{name_parts[1]}"
+
+# Metadata for Drive
+file_metadata = {
+    "name": drive_filename,
+    "parents": [folder_id]
+}
+
+# Upload media (CSV file)
+media = MediaFileUpload(local_path, mimetype="text/csv", resumable=True)
+
+uploaded = drive_service.files().create(
+    body=file_metadata,
+    media_body=media,
+    fields="id, webViewLink"
+).execute()
+
+print("Uploaded:", drive_filename)
+print("Drive file ID:", uploaded["id"])
+print("Open in Drive:", uploaded["webViewLink"])
