@@ -5,7 +5,7 @@ from datetime import datetime
 import re
 
 folder_path = "../../data/html/odds_portal"
-csv_path = "../../data/output/oddsportal_ah_data.csv"
+csv_path = "../../data/oddsportal/oddsportal_ah_data.csv"
 
 def extract_teams_from_participants(soup):
     participants = soup.find('div', {'data-testid': 'game-participants'})
@@ -36,21 +36,20 @@ def extract_competition(soup):
 
 def extract_date_time(soup):
     # Look for data-testid="game-time-item"
-    date, kickoff = "NA", "NA"
+    kickoff_raw = "NA"
     timeblock = soup.find('div', {'data-testid': 'game-time-item'})
     if timeblock:
         # There are <p> for day, for date, and for time
         ps = timeblock.find_all("p")
         # Usually ps[1] is date, ps[2] is kickoff (after "Sunday,")
-        if len(ps) >= 3:
-            date_raw = ps[1].get_text(strip=True).replace(',', '')
-            try:
-                dt = datetime.strptime(date_raw, "%d %b %Y")
-                date = dt.strftime("%d%m%y")
-            except:
-                date = date_raw
-            kickoff = ps[2].get_text(strip=True)
-    return date, kickoff
+        if len(ps) == 3:
+            date_raw = ps[1].get_text(strip=True).replace(',', ' ')
+            time_raw = ps[2].get_text(strip=True)
+            kickoff_raw = date_raw+time_raw
+        else:
+            kickoff_raw = 'NA'
+            
+    return kickoff_raw
 
 def extract_ah_odds_bsoup(filepath):
     with open(filepath, encoding="utf-8") as f:
@@ -58,7 +57,7 @@ def extract_ah_odds_bsoup(filepath):
 
     competition = extract_competition(soup)
     home, away = extract_teams_from_participants(soup)
-    match_date, kickoff_time = extract_date_time(soup)
+    kickoff_raw = extract_date_time(soup)
 
     # --- Odds Extraction ---
     rows = []
@@ -69,13 +68,10 @@ def extract_ah_odds_bsoup(filepath):
         if len(odds) >= 2:
             home_odd = odds[0]
             away_odd = odds[1]
-        else:
-            fallback_odds = [p.get_text(strip=True) for p in block.find_all("p", class_="ml-auto pr-3 text-xs font-normal")]
-            home_odd = fallback_odds[0] if len(fallback_odds) > 0 else "NA"
-            away_odd = fallback_odds[1] if len(fallback_odds) > 1 else "NA"
-        rows.append([home, away, competition, match_date, kickoff_time, ah_label, home_odd, away_odd])
+        
+        rows.append([home, away, competition, kickoff_raw, ah_label, home_odd, away_odd])
     return rows
-
+done = 0
 all_rows = []
 for filename in os.listdir(folder_path):
     if filename.endswith(".html"):
@@ -83,13 +79,17 @@ for filename in os.listdir(folder_path):
         ah_rows = extract_ah_odds_bsoup(file_path)
         for row in ah_rows:
             all_rows.append([filename] + row)
+    done = done +1
+    print(f'{done}    /    {len(os.listdir(folder_path))}')
 
 # Ensure the output directory exists:
 os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
 with open(csv_path, "w", newline='', encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(["Filename", "HomeTeam", "AwayTeam", "Competition", "Date", "KickoffTime", "AsianHandicap", "HomeOdd", "AwayOdd"])
+    writer.writerow([
+    "Filename", "HomeTeam", "AwayTeam", "Competition",
+    "KickoffRaw", "Market", "HomeOdd", "AwayOdd"])
     writer.writerows(all_rows)
 
-print(f"Done! Extracted AH odds and meta-data from {len(all_rows)} rows in {len(os.listdir(folder_path))} files.")
+print(f"Done! Extracted Asian handicap and over/under odds and meta-data from {len(os.listdir(folder_path))} matches out of the total {len(os.listdir(folder_path))} files.")
