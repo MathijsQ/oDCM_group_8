@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 
 folder_path = "../../data/html"
-csv_path = "../../data/all_match_data.csv"
+csv_path = "../../data/output/opta_match_data.csv"
 
 def clean_team_name(name):
     name = re.sub(r'^[\W.]+', '', name)   # Remove leading non-word chars and periods
@@ -54,9 +54,9 @@ for filename in os.listdir(folder_path):
         with open(file_path, encoding="utf-8") as f:
             soup = BeautifulSoup(f, "html.parser")
 
-        # Always define defaults before extracting
         home_team, away_team, home_goals, away_goals = "NA", "NA", "NA", "NA"
         match_date, comp_name, comp_code = "NA", "Unknown", "UN"
+        kickoff_time = "NA"
 
         header_table = soup.find("table", class_=re.compile("Opta-MatchHeader"))
         if header_table:
@@ -76,7 +76,21 @@ for filename in os.listdir(folder_path):
                 home_goals = score_spans[0].get_text(strip=True)
                 away_goals = "NA"
 
-        match_date = extract_match_date(soup, filename)
+        # --- Extract date and kickoff time from the Opta-Date span
+        date_span = soup.find("span", class_="Opta-Date")
+        if date_span:
+            date_text = date_span.get_text(strip=True)
+            match = re.match(r'(\d{1,2} [A-Za-z]+ \d{4})\s+([0-9:]+)', date_text)
+            if match:
+                try:
+                    dt = datetime.strptime(match.group(1), "%d %B %Y")
+                    match_date = dt.strftime("%d%m%y")
+                except:
+                    match_date = match.group(1)
+                kickoff_time = match.group(2)
+        else:
+            match_date = extract_match_date(soup, filename)
+            kickoff_time = "NA"
 
         comp_patterns = r"Premier League|Bundesliga|Serie A|Primera División|Ligue 1|La Liga|Championship|Eredivisie|Süper Lig|European"
         comp_tag = soup.find(string=re.compile(comp_patterns))
@@ -85,11 +99,14 @@ for filename in os.listdir(folder_path):
 
         match_id = f"{get_team_abbr(home_team)}_{get_team_abbr(away_team)}_{match_date}_{comp_code}"
 
-        results.append([match_id, home_team, home_goals, away_goals, away_team, match_date, comp_name, filename])
+        results.append([match_id, home_team, home_goals, away_goals, away_team, match_date, kickoff_time, comp_name, filename])
+
+# Ensure the output folder exists:
+os.makedirs(os.path.dirname(csv_path), exist_ok=True)
 
 with open(csv_path, "w", newline='', encoding="utf-8") as f:
     writer = csv.writer(f)
-    writer.writerow(["MatchID", "HomeTeam", "HomeGoals", "AwayGoals", "AwayTeam", "MatchDate", "Competition", "Filename"])
+    writer.writerow(["MatchID", "HomeTeam", "HomeGoals", "AwayGoals", "AwayTeam", "MatchDate", "KickoffTime", "Competition", "Filename"])
     writer.writerows(results)
 
 print(f"Done! Processed {len(results)} matches from {len(os.listdir(folder_path))} HTML files.")
