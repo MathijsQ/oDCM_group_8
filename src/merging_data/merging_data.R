@@ -57,3 +57,6 @@ oddsportal <- saved_paths_oddsportal%>%
 # Save the combined dataframes
 write_csv(opta, here('data','opta', 'opta_merged.csv'))
 write_csv(oddsportal, here('data', 'oddsportal', 'oddsportal_merged.csv'))
+
+cat('opta data saved at', here('data','opta', 'opta_merged.csv'))
+cat('oddsportal data saved at', here('data', 'oddsportal', 'oddsportal_merged.csv'))
