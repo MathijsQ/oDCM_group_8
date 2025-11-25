@@ -133,35 +133,51 @@ with open(csv_path, "w", newline='', encoding="utf-8") as f:
 print(f"Done! Extracted Asian handicap and over/under odds and meta-data from {len(os.listdir(folder_path))} matches out of the total {len(os.listdir(folder_path))} files.")
 
 # CSV file produced by your scraper
-local_path = csv_path   # e.g. "../../data/opta/match_data.csv"
+local_path = csv_path
 
 # Extract just the filename
-base_name = os.path.basename(local_path)     # "match_data.csv"
+base_name = os.path.basename(local_path)
 
 # Read scraper ID and Drive folder ID from .env
 scraper_id = os.getenv("SCRAPER_ID")
 folder_id  = os.getenv("DRIVE_ID")
 
 # Insert scraper ID into the filename before uploading
-# match_data.csv → match_data_geert.csv
-name_parts = os.path.splitext(base_name)
-drive_filename = f"{name_parts[0]}_{scraper_id}{name_parts[1]}"
+name_root, ext = os.path.splitext(base_name)
+drive_filename = f"{name_root}_{scraper_id}{ext}"
 
-# Metadata for Drive
-file_metadata = {
-    "name": drive_filename,
-    "parents": [folder_id]
-}
-
-# Upload media (CSV file)
 media = MediaFileUpload(local_path, mimetype="text/csv", resumable=True)
 
-uploaded = drive_service.files().create(
-    body=file_metadata,
-    media_body=media,
-    fields="id, webViewLink"
+# 1) Look for existing file with same name in the target folder
+search_resp = drive_service.files().list(
+    q=f"name = '{drive_filename}' and '{folder_id}' in parents and trashed = false",
+    fields="files(id, name)"
 ).execute()
 
-print("Uploaded:", drive_filename)
-print("Drive file ID:", uploaded["id"])
-print("Open in Drive:", uploaded["webViewLink"])
+existing_files = search_resp.get("files", [])
+
+if existing_files:
+    # 2a) Overwrite (update) the first match
+    file_id = existing_files[0]["id"]
+    updated = drive_service.files().update(
+        fileId=file_id,
+        media_body=media,
+        fields="id, webViewLink"
+    ).execute()
+    print("Updated existing file:", drive_filename)
+    print("Drive file ID:", updated["id"])
+    print("Open in Drive:", updated["webViewLink"])
+else:
+    # 2b) Create a new file if none exists
+    file_metadata = {
+        "name": drive_filename,
+        "parents": [folder_id]
+    }
+    created = drive_service.files().create(
+        body=file_metadata,
+        media_body=media,
+        fields="id, webViewLink"
+    ).execute()
+    print("Created new file:", drive_filename)
+    print("Drive file ID:", created["id"])
+    print("Open in Drive:", created["webViewLink"])
