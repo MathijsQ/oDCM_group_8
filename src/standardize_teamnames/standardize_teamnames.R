@@ -180,5 +180,32 @@ build_lookup_from_seed <- function(opta, oddsportal, seed_opta, seed_odds) {
 }
 
 team_lookup <- build_lookup_from_seed(opta=opta, oddsportal = oddsportal_over_under_wide, "Paris Saint-Germain FC","PSG")
-teams_unknown <- setdiff(unique_teams_opta,team_lookup$opta_name)
-print(teams_unknown)
+
+# Import both raw datasets again and standardize teamnames and compnames
+opta <- read_csv(here('data', 'opta', 'opta_merged.csv'))
+oddsportal <- read_csv(here('data', 'oddsportal', 'oddsportal_merged.csv'))
+
+# Standardize competition names
+opta$Competition <- normalize_comp(opta$Competition)
+oddsportal$Competition <- normalize_comp(oddsportal$Competition)
+
+# Standardize teamnames (use oddsportal teamnames as source of truth)
+# Standardize HomeTeam
+opta <- opta %>%
+	filter(HomeTeam%in% team_lookup$opta_name)%>%
+	left_join(team_lookup, by = c("HomeTeam" = "opta_name")) %>%
+	mutate(HomeTeam = coalesce(odds_name, HomeTeam)) %>%
+	select(-odds_name)
+
+# Standardize AwayTeam
+opta <- opta %>%
+	filter(AwayTeam%in% team_lookup$opta_name)%>%
+	left_join(team_lookup, by = c("AwayTeam" = "opta_name")) %>%
+	mutate(AwayTeam = coalesce(odds_name, AwayTeam)) %>%
+	select(-odds_name)
+
+# Write csv for the standardized datasets
+write_csv(opta, here('data', 'opta', 'opta_standardized.csv'))
+write_csv(oddsportal, here('data', 'oddsportal', 'oddsportal_standardized.csv'))
+
+
