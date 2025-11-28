@@ -66,15 +66,10 @@ oddsportal <- oddsportal %>%
 		home_clean = gsub(" ", "", HomeTeam),
 		away_clean = gsub(" ", "", AwayTeam),
 		date_clean = format(kickoff, "%d%m%Y"),
-		key_string = paste0(home_clean, "_", away_clean, "_", date_clean)
-	) %>%
-	rowwise() %>% 
-	mutate(
-		match_id_full = digest(key_string, algo = "md5"),
-		match_id      = substr(match_id_full, 1, 24)
+		match_id = paste0(tolower(home_clean), "_", tolower(away_clean), "_", date_clean)
 	) %>%
 	ungroup() %>%
-	select(-home_clean, -away_clean, -date_clean, -key_string, -match_id_full)
+	select(-home_clean, -away_clean, -date_clean)
 
 # =====================
 # KEEP SCRAPING_ID WITH DATA FOR TIMESTAMP INTEGRATION LATER ON
