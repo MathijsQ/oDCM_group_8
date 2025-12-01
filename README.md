@@ -37,14 +37,14 @@ We scrape the football match statistics and betting odds from two public sources
   - Metadata including competition name, season, date, home and away teams, and final score.
 - From **OddsPortal**, we will extract:
   - Pre-match odds for the main outcomes (home win, away win, Asian Handicap (AH) and Over/Under (OU)).
-   -Additional metadata such as competition, date, and bookmaker name.
+   -Additional metadata such as competition, date.
 
 We collected data for the **2024–2025 season** across the **top five European leagues** (Premier League, La Liga, Serie A, Bundesliga, Ligue 1) and **European competitions** (Champions League, Europa League, and Conference League). Since we want a complete overview of teams and odds patterns, we are not using random sampling. This ensures that all leagues and teams are consistently represented in the dataset.
 To align data from Opta Player Stats and OddsPortal, we will construct unique match identifiers based on team names, match date, and competition.
 
 ``
 For example:
-Manchester United vs Liverpool on 01/01/2024 in the Premier League → MUD_LIV_010124_PL
+Holstein Kiel vs Stuttgart on 08/03/2025 → holsteinkiel_stuttgart_080325
 ``
 
 These identifiers will allow us to merge data across sources accurately.
@@ -67,36 +67,142 @@ During scraping, Selenium will automatically:
 We will only store the necessary data fields and metadata. All files will be stored locally. The dataset does not contain any sensitive or confidential data, since no data at the individual level will be gath-ered. That is, usernames, IP addresses, demographics, sexual orientations, beliefs, opinions, memberships, pass-words, financial information, biometric information, or similar, will not form part of the final dataset. The final dataset will only contain information regarding the predicted odds that certain selected football teams have of winning, losing, or tying against other football teams.
 
 ## 3. Data extraction Process
-As of 20/11/2025, the data collection process has started. This section describes the setup and implementation of the plan and how we overcome issues that we have encountered. 
+The data collection process had started as of the 20th of November of 2025 and was finalized on the 26th of No-vember of 2025. This section describes the setup and implementation of the plan, and how we overcame the issues that we encountered. 
 ### Challenges
 The extraction pipeline is designed around stable and consistent features of the *Opta Player Stats* interface, in order to support performance and scalability during data collection. As such, to be able to identify matches in a robust way regardless of possible layout changes, each match is represented as a `<tbody>` element with a unique data-match attribute. Furthermore, to mirror genuine browser interaction, clickable `td.Opta-Divider.Opta-Dash` elements are used to navigate to match-level pages. By using these elements (*tbody and td.Opta-Divider.Opta-Dash*), the likelihood of breakage due to site updates is reduced.
 
-To avoid high-frequency automated scraping, occasional low-intensity scraping sessions are set in place for data collection. In these sessions, each team member retrieves and processes only the matches that have not yet been scraped as noted in our Google Sheets log. During each session, *Selenium* is used to retrieve and save the full HTML for each match. To reduce the time spent on the website and avoid unnecessary repeated requests, pars-ing of structured information will occur offline, separately from collection. Anti-bot systems such as *Akamai* may also occasionally interfere with the data collection process, so we will each implement basic block detection. If we do not get the HTML structures we expect (such as match header containers, or key Opta class names), or if the response is similar to a known block pattern (“Access Denied”, empty HTML, etc.), we will not make further requests, ensuring data quality and protecting server load. 
+To avoid high-frequency automated scraping, occasional low-intensity scraping sessions were set in place for data collection. In these sessions, each team member retrieved and processed only the matches that had not yet been scraped as noted in our Google Sheets log (see Section 3.3). During each session, Selenium was used to re-trieve and save the full HTML for each match. To reduce the time spent on the website and avoid unnecessary repeated requests, parsing of structured information occurred offline, separately from collection. Anti-bot sys-tems such as Akamai were also expected to occasionally interfere with the data collection process, so we each implemented basic block detection. If we did not get the HTML structures we expected (such as match header containers, or key Opta class names), or if the response was similar to a known block pattern (“Access Denied”, empty HTML, etc.), we did not make further requests, ensuring data quality and protecting server load. 
 
-The total scope of the project is approximately 1,750 matches (five competitions of ≈350 matches each), so we must make sure that the process remains stable, avoid redundant work, and prevent long-term session interrup-tions.
+However, certain matches did require more than one scraping attempt because a crucial HTML element had not loaded, preventing the completion of their scraping. That is, at least two attempts to scrape these matches were made in different scraping sessions. For OddsPortal, the scraping process was virtually seamless, since only three matches in total required an extra scraping attempt. For Opta Player Stats, on the other hand, 237 matches gave errors and required extra scraping attempts. Upon further inspection of Opta Player Stats’ error count per league and competition, it was revealed that 103 of these matches were from “La Liga”, accounting for 43.5% of the football matches that gave scraping errors. This imbalance in the distribution of errors across leagues and competitions may be due to several different reasons. For example, “La Liga” pages might use a less consistent HTML structure or rely on heavier, more complex content loading, making crucial elements more likely to fail to load during scraping. The overall distribution of error counts for Opta Player Stats is shown below.
+
+<img width="1800" height="1200" alt="errorcountdistr_opta" src="https://github.com/user-attachments/assets/f0b20950-9532-411a-b403-3eed80fb761b" />
+
+The initially estimated scope of the project was approximately 1,750 matches (five competitions of ≈350 matches each), so we made sure that the process remained stable, to avoid redundant work, and to prevent long-term session interruptions. In reality, we surpassed the estimated scope of the project. From Opta Player Stats, we scraped 2130 observations corresponding to 2130 football matches. From Oddsportal, we scraped 98801 observa-tions, which corresponded to 2308 football matches. There are more observations than football matches in the OddsPortal dataset because there, several different Asian Handicap and Over/Under gambling modes were also collected per match, leading to multiple observations per football match.
+
+Opta Player Stats is our “source of truth” since we collected the football matches’ actual score from there, so only the football matches in the OddsPortal dataset (2308) that contained a match with the Opta Player Stats dataset (2130) were selected for analysis. Thus, the final dataset consists of 2128 football matches.
+
 ### Monitoring systems 
-A centralized, lightweight Google Sheets log that is integrated into the scraping workflow will be used for data monitoring. For each match ID, the log helps to track (a) whether the match has been scraped, (b) the timestamp of the moment where the scraping occurred, and optionally, (c) an indicator of the state of the response (such as normal HTML vs. blocked/empty content). This log allows us to assess which matches have a valid HTML and which require new scraping attempts at any given moment. Since the log is updated in real time, we can immediately establish which matches need to be processed at a given point in time, and work on those. The spreadsheet will be accessed using the Google Spreadsheet API. All the devices on which we will scrape will have a JSON key stored locally that allows access to our logging spreadsheet. 
+A centralized, lightweight Google Sheets log that is integrated into the scraping workflow was used for data monitoring. For each match ID, the log helped to track (a) whether the match had been scraped, (b) the timestamp of the moment where the scraping occurred, and optionally, (c) an indicator of the state of the re-sponse (such as normal HTML vs. blocked/empty content). This log allowed us to assess which matches had a valid HTML and which required new scraping attempts at any given moment. Since the log is updated in real time, we could immediately establish which matches needed to be processed at a given point in time, and work on those. To implement this monitoring system, our logging spreadsheet was accessed using the Google Spread-sheet API, and all the devices on which we scraped had a JSON key stored locally that allowed access to it. 
 
-We also plan on storing raw HTML files for each match, which will allow for the verification of parsing accuracy by comparing the parsed outputs against the raw HTML. In case we change our parsing logic later in the project, we can simply process previously collected HTML files again without revisiting the website. Basic quality checks (verifying expected numbers of matches per match week, confirming that the extracted team names match the corresponding metadata, etc.) will be performed periodically.
+We also stored the raw HTML files for each match, which allowed for the verification of parsing accuracy by comparing the parsed outputs against the raw HTML. This was a good measure to have implemented, because if we when changing our parsing logic during the project, we could simply process the previously collected HTML files again without revisiting the website. Furthermore, basic quality checks (verifying expected numbers of matches per match week, confirming that the extracted team names match the corresponding metadata, etc.) were also performed periodically.
 
-Since all match IDs and their statuses are stored in the same place, this log allows us to easily detect potential issues such as incomplete match sets, unusually small HTML files, or a sudden streak of bad responses.
 ### Infrastructure specifics
-`<tbody>` and `td.Opta-Divider.Opta-Dash` elements are used to uniquely represent each match and mirror genuine browsing behavior. Selenium is used to retrieve the full HTML of each match, and parsing is separately done, offline. Basic block detection will be implemented by every team member in each of the occasional scraping sessions. Furthermore, a Google Sheets log will be maintained throughout the data collection process, helping ensure transparency as well as reproducibility later on. This logbook helps to keep track of relevant events such as detection of blocks, HTML anomalies, or changes in website structure that affect selectors, but does not track who scraped each match or how many matches were scraped per scraping session, since these details do not impact data quality. Only match-level information (scraped status, timestamps, and any associated response issues) is recorded.
+`<tbody>` and `td.Opta-Divider.Opta-Dash` elements were used in order to uniquely represent each match and mirror genuine browsing behavior. Selenium was used to retrieve the full HTML of each match, and parsing was separately done, offline. Basic block detection was implemented by every team member in each of the occasional scraping sessions. Furthermore, a Google Sheets log was maintained throughout the data collection process, helping ensure transparency as well as reproducibility. This logbook helped to keep track of relevant events such as detection of blocks, HTML anomalies, or changes in website structure that affect selectors, but did not track who scraped each match or how many matches were scraped per scraping session, since these details do not impact data quality. Only match-level information (scraped status, timestamps, and any associated response issues) was recorded.
 
-To support reproducibility, parsed datasets will be derived from stored raw HTML in a way that can be traced, and variable definitions will be documented when parsing begins. The final dataset, as well as the HTML collec-tion and scraping scripts, will be kept to ensure long-term accessibility and reproducibility.
+Furthermore, GitHub was used throughout the project to enable collaborative development of code and to pro-vide additional benefits such as reproducibility and transparency.
+
+To support reproducibility, parsed datasets were derived from the stored raw HTML’s in a way that could be traced, and variable definitions are documented in the current paper. The HTML collection and scraping scripts, as well as the scripts we used to create our final dataset and produce our results, will be kept in our GitHub re-pository to ensure long-term accessibility and reproducibility.
+
+## 4. Preprocessing, Cleaning, Labeling
+After collecting the raw data the next phase was to enter a structured preprocessing pipeline, its primary objec-tives being to **(i)** check for duplicates and perform basic cleaning, **(ii)** harmonize team identities and construct consistent match identifiers, **(iii)** normalize bookmaker odds by removing the house margin and **(iv)** prepare a stable data structure for long-term analysis. 
+### (i) Duplicate checks and basic cleaning: 
+The scraping pipeline is designed to avoid duplicates, but we performed sanity checks regardless once a standardized `match_id` was available. Step (ii) involves standardizing the metadata of the collected records, and to do so, timestamps were normalized to the Amsterdam time zone. Using these times, along with the competition and preliminary team name data, we were able to create unique match_id’s as exemplified in Section 2.2. These identifiers were used to locate and drop any exact duplicates. 
+Furthermore, we removed any observations where either Opta or OddsPortal failed to provide betting data (e.g. missing odds/goal data), ensuring that only reliably linked and analyzable records remain. The missing data handling process per dataset is detailed below.
+
+#### Opta Player Stats
+The dataset scraped from Opta Player Stats consists of 2130 observations, each accounting for a unique football match, and contains no missing values. 
+
+#### OddsPortal
+The dataset scraped from OddsPortal consists of a total of 98801 observations of 2308 unique football matches. It contains missing values in (a) the home and away team name variables, (b) the kickoff time variable, and (c) the home and away odds variables.
+1. The team name variables contain 77 co-occurring, aligned missing values. That is, all of the observa-tions that contain a missing value in the home team name variable, also contain a missing value in the away team name variable, and vice versa.
+2. The kickoff time variable contains missing values for 96 observations, including the 77 with missing values in the teams’ name variables. 
+
+The unique `match_ID’s` constructed are based solely on them kickoff time, home team name, and away team name variables, causing any observation with a missing value in one them to be unusable for our analysis. Thus, the 96 observations containing missing values in the kickoff time variable (which included the 77 in the team name variables) were filtered out from the OddsPortal dataset, leaving 2304 unique football matches.
+
+At this point, the football matches that would be included in the analysis were selected. That is, only those football matches in the OddsPortal dataset that were also in the Opta Player Stats dataset were retained, leaving a final total of 2128 football matches, and 91149 observations. This selection was realized after computing the `match_id` variable, and by using it to select only those observations with an identical `match_id` in both datasets.
+
+3. The odds variables contain 4765 co-occurring, aligned missing values. That is, all of the observations that contain a missing value in the home team odds variable, also contain a missing value in the away team odds variable, and vice versa.
+
+The observations with missing values in the odds variables were also filtered out from the final dataset, since the information on home and away odds is crucial for our analysis. Thus, the final dataset consists of 86384 observations of 2128 football matches. However, prior to the filtering of (c) the observations with missing values in the odds variables, the distribution of the missing values was further inspected. This was done to analyze whether the missing data is random, or whether for instance there are certain leagues or competi-tions that have more missing data, since this could become a problem for representativeness. To do so, match-level missingness of home and away odds was computed and then summarized by league, allowing for every match to count equally, regardless of how many observations it has. The results are provided in the following table:
+
+|League or Competition | Champions League | Europa League | La Liga | Premier League | Bundesliga | Serie A | Ligue 1 |
+| :--- | :--- | :--- | :--- | :--- | :--- | :--- | :--- |
+| Mean Proportion of Missing Odds Observations | 0.056 | 0.054 | 0.053 | 0.052 | 0.052 | 0.049 | 0.045 |
+
+Here, it can be observed that all of the leagues have a similar, low proportion of missing observations in the odds variables, meaning that these missing values do not pose a problem for representativeness when run-ning the analysis. Furthermore, by inspecting HTML’s reported to contain observations with missing values in the odds variables, it was observed that these are missing by nature, as OddsPortal contained no infor-mation for them either.
+
+### (ii) Harmonizing team names across the scraping websites
+Team names are a significant challenge, as they often differ between different websites (e.g. Inter Milan/ Inter / Internazionale is the same club with different notations). To resolve this, a three phase plan was used to map all variations of names to one chosen name. 
+
+#### Phase 1: Domestic league matching (base mapping)
+We clustered matches within one of the 5 competitions by a narrow `kickoff_datetime` window (e.g. 10-15 minutes) to create candidate pairs. For easy, one-to-one matches, the Opta team name was directly mapped to the OddsPortal name. **?For ambiguous cases, the team utilized the OpenAI API to intelligently match the two team sets, with these mappings being flagged as "OpenAI-assisted" for interpretability.?**
+
+#### Phase 2: extended mapping to European competitions
+Mappings from Phase 1 were used to infer new mappings from clubs in the European competitions. For exam-ple, if a known team played an unknown team in a Champions League match that could be aligned by time and competition, the mapping for the unknown opponent could be inferred and added to the lookup table.
+
+In other words, once it was established that “FC København” ↔ “FC Copenhagen”, we could use a UCL match to infer that Opta’s “Red Star Belgrade” corresponds to OddsPortal’s “Crvena Zvezda”, simply by aligning the joint fixture.
+
+#### Phase 3: Completing coverage for smaller/rare teams
+Final coverage for rare or smaller teams was achieved using a combination of the “known opponent” logic, string similarity checks, **? and final OpenAI assistance for issues like transliteration.?** 
+
+By identifying matches that align perfectly by competition and kickoff time, if one team was already mapped (e.g., from Phase A or B), its opponent’s name in the Opta record could be directly mapped to the opponent’s name in the OddsPortal record. This process efficiently inferred new, highly accurate mappings based on shared fixture schedules, adding them to the central lookup table.
+
+For the handful of teams that remain unmatched even after the known opponent logic, we employed a final, combined approach. This involved basic string similarity checks to handle minor spelling discrepancies, fol-lowed by targeted OpenAI API assistance to resolve complex linguistic issues. The goal was to ensure that every team name collected from Opta and OddsPortal was linked to a single, `canonical_team_name` in the final dataset, guaranteeing accurate data merging and eliminating team-name mapping errors.
+
+### (iii) Normalizing bookmaker odds
+Bookmaker odds contain a built-in profit margin, known as the **Overround**, causing the probabilities of all possible outcomes to sum to more than 100%. To derive “Fair” odds for analysis this margin must be removed. The normalization procedure followed 3 steps for each market ( 1X2, Asian Handicap (AH) and Over/Under (OU)): 
+
+#### 1. Convert to Implied Probabilities ($p_i$)
+
+For decimal odds, the implied probability is calculated as:
+
+$$p_i = \frac{1}{Odds_i}$$
+
+* **2 outcomes** for AH and OU (e.g., Home AH vs Away AH, Over vs Under)
+* **3 outcomes** for 1X2 (Home, Draw, Away)
+
+#### 2. Compute Total Implied Probability ($S$)
+
+The sum of these probabilities:
+
+$$S = \sum_{i} p_i$$
+
+$\rightarrow$ If $S > 1$, there is a house margin for that specific market and line.
+
+#### 3. Normalize to Obtain Fair Probabilities ($p_i^{fair}$)
+
+Each probability is rescaled so they sum exactly to 1:
+
+$$p_i^{fair} = \frac{p_i}{S}$$
+
+These margin-free probabilities represent the bookmaker’s underlying belief, assuming the margin is distributed proportionally across outcomes. If we wanted to store odds rather than probabilities, we could have converted the normalized probabilities back to “fair” decimal odds:
+
+$$odds_i^{fair} = \frac{1}{p_i^{fair}}$$
+
+### (iv) Final data structure and match identifiers
+The final data output is structured in two main datasets for analytical flexibility: 
+1. Cleaned Raw Data
+   Contains the untransformed match-level info. Key fields like standardized match_id, HomeTeam, AwayTeam HomeGoals, AwayGoals and the raw book-maker odds.
+2. Derived Analysis Dataset
+   This extends the cleaned dataset with the core analytical variables: the margin-free (fair) probabilities and/or fair odds for all available AH and OU lines.
+
+THe structural choice is to maintain one row per match, with each AH or OU line stored in its own set of columns (e.g., ah_minus_0_5_home_fair_prob). If a line is not offered for a match, the corresponding cells will be marked as missing (NA).
+
+### Privacy measures
+The project is focused only on objective team-level performance metrics and public betting odds, the dataset does not contain any sensitive or confidential data. No individual-level data, such as usernames, IP addresses, demographics, or personal beliefs, will be gathered, meaning anonymization measures are not needed.
+
+### Potential threats or biases
+Several potential risks could arise from our pre-processing steps:
+
+- **Team-name mapping errors**
+  Misalignment between Opta and OddsPortal team names could lead to incorrect joins and mis-labeled matches. We intended to minimize this by using a structured lookup table and multiple evidence sources (time, competition, known opponents, and OpenAI assistance), but the risk cannot be fully eliminated.
+- **Selection bias from dropped matches**
+  When crucial information is missing from either source, observations are eliminated. The sample may have then been somewhat skewed toward better-covered events if scraping failures or incomplete markets were more prevalent in particular competitions, but the inspection of missing values did not seem to point in this direction (see Section 4.1).
+- **Effects of odds normalization**
+  The fundamental assumption that the bookmaker's overround is distributed proportionally may not hold true, potentially causing the resulting "fair" probabilities to slightly deviate from the bookmaker’s true internal assessment.
+- **Uneven market depth across competitions**
+	Since some competitions offer a much wider range of betting lines than others, the richness of the in-ferred probability distributions will vary, which may complicate cross-competition comparability. 
+
+## 5. Data Inspection
 
 
 
-
-
-
-
-## Dependencies 
+## 6. Dependencies 
 **Download the right packages**
 ```
 pip install gspread google-auth python-dotenv selenium webdriver-manager beautifulsoup4 google-api-python-client google-auth-oauthlib google-auth-httplib2
 ```
-## Running Instructions 
+## 7. Running Instructions 
 1. Clone the github repo
 -make new directory: scraping_assignment
 -in this directory, clone the repo
@@ -125,7 +231,7 @@ OAUTH_CLIENT=../keys/client_secret_462496109222-v95ajc5muovgq68ttf93g11556np8itd
 
 ## About 
 
-This dataset was created by Team 8 of the mandatory Online Data Collection and Management course designed for students at Tilburg University following the MSc in Marketing Analytics program. More specifically, it was consolidated by Geert Huissen, Mathijs Quarles van Ufford, María Orgaz Jiménez, and Nigel de Jong – all stu-dents of said program at Tilburg University.
+This dataset was created by Team 8 of the mandatory Online Data Collection and Management course designed for students at Tilburg University following the MSc in Marketing Analytics program. More specifically, it was consolidated by Geert Huissen, Mathijs Quarles van Ufford, María Orgaz Jiménez, and Nigel de Jong – all students of said program at Tilburg University.
 
 ## Source list
 https://finance.yahoo.com/news/sports-betting-market-trends-growth-081500944.html?guccounter=1&guce_referrer=aHR0cHM6Ly93d3cuZ29vZ2xlLmNvbS8&guce_referrer_sig=AQAAAMVG_Oq1pxwgPPLN2quY8mipodqxBTiPH5tVfdf4YO-jS0d2Hmmn7c44mHDzSYE1xwkZ7JGnLuznmWbZWOg7L7fd3JuZYvdNHrsD6C-exOLqybOJfa07mF8V-f0x3N6SV1H-X-M48igYiYMV_bFALslnK6ZZqVUms3agCZb5J0VJ
