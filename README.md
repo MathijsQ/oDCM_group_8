@@ -1,8 +1,8 @@
 # When Data Meets the Odds: <br> Investigating the Alignment Between On-Field Performance and Betting Markets
-*In this project we aim to scrape web data from two sources and combine them to create useful insights in the football and betting markets. By block scraping we collect data on which we later compute interesting statistics and create plots to un-derstand how the two markets are interact with each other and influence each other.*
+*In this project we aim to scrape web data from two sources and combine them to create useful insights in the football and betting markets. By block scraping we collect data on which we later compute interesting statistics and create plots to understand how the two markets are interact with each other and influence each other.*
 
 ## 1. Motivation
-The primary business problem motivating the creation of this dataset is the need to better understand how foot-ball performance statistics relate to betting odds set by bookmakers. Betting sites are gaining users rapidly and according to ResearchAndMarkets.com the global sports betting market reached a value of nearly USD 107.4 billion in 2024 (YahooFinance, 2025).
+The primary business problem motivating the creation of this dataset is the need to better understand how football performance statistics relate to betting odds set by bookmakers. Betting sites are gaining users rapidly and according to ResearchAndMarkets.com the global sports betting market reached a value of nearly USD 107.4 billion in 2024 (YahooFinance, 2025).
 
 By combining detailed match-level statistics and pre-match odds, this dataset enables the exploration of the relationship between objective performance indicators (e.g. goals, expected goals, possessions, shots (on target) etc.) and subjective market evaluations (i.e., bookmaker odds). This integration offers insights into how real-world performance data influences the betting markets. Furthermore, we aim to streamline the data collection process by automating access to two key sources that are normally analyzed separately. Thereby, reducing time and effort for future researchers. 
 
@@ -19,7 +19,7 @@ By combining detailed match-level statistics and pre-match odds, this dataset en
   - Are there differences 
 
 ## Source comparisons
-In the end we used the websites **Optaplayerstats.statsperform.com** as the main website to collect game statistics and **Oddsportal.com** for all necessary bookmaker data. Below you can read other sources we took into considera-tion and our motivation for choosing/not choosing the website.
+In the end we used the websites **Optaplayerstats.statsperform.com** as the main website to collect game statistics and **Oddsportal.com** for all necessary bookmaker data. Below you can read other sources we took into consideration and our motivation for choosing/not choosing the website.
 
 | Source | Extraction method (web scraping vs API) | Research fit | Accessibility | Efficiency to scrape |
 | :--- | :--- | :--- | :--- | :--- |

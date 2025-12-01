@@ -2,7 +2,7 @@ library(dplyr)
 library(stringr)
 library(readr)
 library(lubridate)
-setwd("~/oDCM_group_8")
+
 opta <- read_csv("data/opta/opta_standardized.csv")
 oddsportal <- read_csv("data/oddsportal/oddsportal_standardized.csv")
 

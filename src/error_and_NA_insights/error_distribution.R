@@ -4,7 +4,7 @@ library(dplyr)
 library(readr)
 library(stringr)
 library(ggplot2)
-setwd("~/oDCM_group_8")
+
 football_matches <- read_csv("data/merged/football_matches.csv")
 opta_db <- read_csv("data/scraping_logs/opta_database.csv")
 oddsportal_db <- read_csv("data/scraping_logs/oddsportal_database.csv")
