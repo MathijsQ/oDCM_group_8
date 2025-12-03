@@ -14,10 +14,11 @@ oddsportal <- read_csv(here("data", "oddsportal", "oddsportal_standardized.csv")
 # Parse kickoff times from raw string (dmy_hm = day-month-year hour:minute)
 oddsportal$kickoff <- dmy_hm(oddsportal$KickoffRaw)
 
-# Overview of missingness (for inspection / logging)
+# Code odd variable NAs as NAs
 oddsportal$HomeOdd[oddsportal$HomeOdd == "-"] <- NA
 oddsportal$AwayOdd[oddsportal$AwayOdd == "-"] <- NA
 
+#Overview of missings
 missing_table_oddsportal <- oddsportal %>%
   summarise(across(everything(), ~ sum(is.na(.))))
  #96 NAs in kickoff (game kickoff time variable)
@@ -95,14 +96,14 @@ oddsportal_NAs_filtered <- oddsportal %>%
   )
 
 #Number of unique matches after filtering out home and away odds NAs
-number_unique_matches <-
+number_unique_matches_no_NAs <-
   oddsportal_NAs_filtered %>%
   distinct(HomeTeam, AwayTeam, Competition, KickoffRaw) %>%
   nrow()
 
-# =================================
-# FINAL DATASET (football_matches)
-# =================================
+# ==============================================
+# DATASET USED FOR INSPECTION (football_matches)
+# ==============================================
 football_matches <- oddsportal_NAs_filtered %>%
   rename(html_oddsportal = Filename) %>%
   left_join(
@@ -121,7 +122,7 @@ football_matches <- football_matches %>%
 if (!dir.exists("data/merged")) {
   dir.create("data/merged", recursive = TRUE)
 }
-write_csv(football_matches, "data/merged/football_matches.csv")
+write_csv(football_matches, here("data", "merged", "football_matches.csv"))
 
 # ============================================================
 # DESCRIPTIVE ANALYSIS OF NA DISTRIBUTION ACROSS COMPETITIONS

@@ -9,23 +9,14 @@ library(here)
 football_matches <- read_csv(here("data", "merged", "football_matches.csv"))
 opta_db <- read_csv(here("data", "scraping_logs", "opta_database.csv"))
 oddsportal_db <- read_csv(here("data", "scraping_logs", "oddsportal_database.csv"))
-#opta_db: match_id column is the scraping ID, which corresponds to the oddsportal_matched_opta$Filename column, but without the .html at the end
-#oddsportal_db: scrape_id column is the scraping ID, which is the same as the $scraping_id in the bookmaker_params.csv file derived from the fit_bivariate_poisson.R file
 
-#=====================
-# RENAMING VARIABLES
-#=====================
+# Renaming Possibly Misleading Variables
 opta_db <- opta_db %>%
   rename(html_opta = match_id)
 oddsportal_db <- oddsportal_db %>%
   rename(html_oddsportal = scrape_id)
 
-#=================================================================
-# COMPLETING oddsportal_matched_opta WITH THE INFORMATION IN opta
-#=================================================================
 # Selecting only variables of interest for error distribution analysis
-# oddsportal_matched_opta = main dataset (many rows per match)
-# opta                    = match-level info (one row per match_id)
 temp_errors <- football_matches %>%
   select(-KickoffRaw, -Market, -HomeOdd, -AwayOdd, -HomeGoals, -AwayGoals) %>%
   distinct(.)
@@ -67,7 +58,7 @@ errorcountdistr_oddsportal <- ggplot(errors_oddsportal %>% filter(!is.na(errors)
   labs(x = "Number of errors before completion",
        y = "Count",
        title = "Distribution of error counts for OddsPortal")
-ggsave("data/oddsportal/errorcountdistr_oddsportal.png", plot = errorcountdistr_oddsportal, width = 6, height = 4, dpi = 300)
+ggsave(here("data", "oddsportal", "errorcountdistr_oddsportal.png"), plot = errorcountdistr_oddsportal, width = 6, height = 4, dpi = 300)
 
 #=========================================================
 # OPTA PLAYER STATS ERROR DISTRIBUTION SUMMARY STATISTICS
@@ -112,6 +103,6 @@ errorcountdistr_opta <- ggplot(errors_opta %>% filter(!is.na(error)), aes(x = fa
   labs(x = "Number of errors before completion",
        y = "Count",
        title = "Distribution of error counts for Opta Player Stats")
-ggsave("data/opta/errorcountdistr_opta.png", plot = errorcountdistr_opta, width = 6, height = 4, dpi = 300)
+ggsave(here("data", "opta", "errorcountdistr_opta.png"), plot = errorcountdistr_opta, width = 6, height = 4, dpi = 300)
 
 
