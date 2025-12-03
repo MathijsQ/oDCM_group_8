@@ -8,37 +8,37 @@ library(here)
 opta <- read_csv(here("data", "opta", "opta_standardized.csv"))
 oddsportal <- read_csv(here("data", "oddsportal", "oddsportal_standardized.csv"))
 
-# ===========
-# ODDSPORTAL
-# ===========
-# Parse kickoff times from raw string (dmy_hm = day-month-year hour:minute)
+# ===========================================================================
+# ODDSPORTAL: Missing Data Insights of Raw and Processed OddsPortal Datasets
+# ===========================================================================
+# Processing: Parse kickoff times from raw string (dmy_hm = day-month-year hour:minute)
 oddsportal$kickoff <- dmy_hm(oddsportal$KickoffRaw)
-
-# Code odd variable NAs as NAs
+# Processing: Code odds variables missing data as NAs
 oddsportal$HomeOdd[oddsportal$HomeOdd == "-"] <- NA
 oddsportal$AwayOdd[oddsportal$AwayOdd == "-"] <- NA
 
-#Overview of missings
+# Insight: Overview of missing data in "raw" OddsPortal scraped dataset
 missing_table_oddsportal <- oddsportal %>%
   summarise(across(everything(), ~ sum(is.na(.))))
  #96 NAs in kickoff (game kickoff time variable)
  #77 corresponding NAs in HomeTeam and AwayTeam (football team name variables)
+ #5149 corresponding NAs in HomeOdd and AwayOdd (odds)
 
-# Remove rows missing crucial fields
+# Processing: Remove rows missing kickoff time and/or team names (these are crucial to create the match_id's)
 oddsportal <- oddsportal %>%
   filter(
     !is.na(kickoff),
     !is.na(HomeTeam),
-    !is.na(AwayTeam)
-  )
+    !is.na(AwayTeam))
 
+# Insight: Number of matches after removing rows with missing data in kickoff time and/or team names
 oddsportal_unique_matches <-
   oddsportal %>%
   distinct(HomeTeam, AwayTeam, Competition, KickoffRaw) %>%
   nrow()
  #2304 unique matches
 
-# Create match_id
+# Processing: Create match_id
 oddsportal <- oddsportal %>%
   mutate(
     home_clean = gsub(" ", "", HomeTeam),
@@ -49,85 +49,54 @@ oddsportal <- oddsportal %>%
   ungroup() %>%
   select(-home_clean, -away_clean, -date_clean)
 
-# =====================
-# OPTA PLAYER STATS
-# =====================
-#-Create opta match id’s in the same way as for oddsportal
+# =========================================================================================
+# OPTA PLAYER STATS: Missing Data Insights of Raw and Processed Opta Player Stats Datasets
+# =========================================================================================
+# Processing: Create opta match id’s in the same way as for oddsportal
 opta$kickoff <- dmy_hm(opta$KickoffTimeRaw)
-
 opta <- opta %>%
   mutate(
     home_clean = gsub(" ", "", HomeTeam),
     away_clean = gsub(" ", "", AwayTeam),
     date_clean = format(kickoff, "%d%m%Y"),
-    match_id = paste0(tolower(home_clean), "_", tolower(away_clean), "_", date_clean)
-  ) %>%
+    match_id = paste0(tolower(home_clean), "_", tolower(away_clean), "_", date_clean)) %>%
   ungroup() %>%
   select(-home_clean, -away_clean, -date_clean)
 
+# Insight: Number of NAs in "raw" Opta Player Stats scraped dataset
 NAs_opta <- colSums(is.na(opta))
  #0 NAs
-
-# ============================================
-# SELECT oddsportal DATA THAT IS ALSO IN opta
-# ============================================
-#- only select oddsportal data when match id is %in% opta$match_id
-oddsportal <- oddsportal[oddsportal$match_id %in% opta$match_id, ]
 
 # =====================
 # MISSING VALUE STATS
 # =====================
+# Processing: Select only OddsPortal data for those football matches that are also in Opta Player Stats
+# (when oddsportal$match_id is %in% opta$match_id),
+# to ensure that data on their actual score game can also be obtained and thus used
+oddsportal <- oddsportal[oddsportal$match_id %in% opta$match_id, ]
+
+# Insight: Overview of missing data when selecting only OddsPortal football matches also scraped from Opta Player Stats,
+# and after having removed NAs from crucial fields (kickoff time, and team names variables)
 missing_table <- oddsportal %>%
   summarise(across(everything(), ~ sum(is.na(.))))
  #4765 NAs in home and away odds
 
-# Number of unique matches before filtering out home and away odds NAs
-number_unique_matches <-
-  oddsportal %>%
-  distinct(HomeTeam, AwayTeam, Competition, KickoffRaw) %>%
-  nrow()
- #2128 unique matches
-
-# Filter out observations with NAs in home and away odds variables
+# Processing: Filter out observations with NAs in home and away odds variables
 oddsportal_NAs_filtered <- oddsportal %>%
   filter(
     !is.na(HomeOdd),
-    !is.na(AwayOdd)
-  )
+    !is.na(AwayOdd))
 
-#Number of unique matches after filtering out home and away odds NAs
+# Insight: Number of unique matches after filtering out home and away odds NAs
 number_unique_matches_no_NAs <-
   oddsportal_NAs_filtered %>%
   distinct(HomeTeam, AwayTeam, Competition, KickoffRaw) %>%
   nrow()
-
-# ==============================================
-# DATASET USED FOR INSPECTION (football_matches)
-# ==============================================
-football_matches <- oddsportal_NAs_filtered %>%
-  rename(html_oddsportal = Filename) %>%
-  left_join(
-    opta %>% 
-      select(match_id, HomeGoals, AwayGoals, html_opta = Filename), 
-    by = "match_id")
-# Removing ".html" suffix from html variables, and "ah_" or "ou_" prefix from html_oddsportal
-football_matches <- football_matches %>%
-  mutate(
-    html_opta = str_remove(html_opta, "\\.html$"),
-    html_oddsportal = html_oddsportal %>%
-      str_remove("^ah_") %>%
-      str_remove("^ou_") %>%
-      str_remove("\\.html$")
-  )
-if (!dir.exists("data/merged")) {
-  dir.create("data/merged", recursive = TRUE)
-}
-write_csv(football_matches, here("data", "merged", "football_matches.csv"))
+ #2128 matches are part of the dataset used for the analysis ("data/merged_opta_oddsportal/football_matches.csv")
 
 # ============================================================
 # DESCRIPTIVE ANALYSIS OF NA DISTRIBUTION ACROSS COMPETITIONS
 # ============================================================
-
 # 1) Overall number and proportion of missing values per variable
 overall_na <- oddsportal %>%
   summarise(
@@ -135,11 +104,8 @@ overall_na <- oddsportal %>%
       .cols = everything(),
       .fns  = list(
         n_na = ~sum(is.na(.)),      # number of NAs
-        p_na = ~mean(is.na(.))      # proportion of NAs
-      ),
-      .names = "{.col}_{.fn}"
-    )
-  )
+        p_na = ~mean(is.na(.))),      # proportion of NAs
+      .names = "{.col}_{.fn}"))
 overall_na
 
 # 2) Observation-level missingness by league

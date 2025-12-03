@@ -1,5 +1,5 @@
 #FIRST: Run src/scraping_html/collecting_scraping_db.py in the command terminal,
-#and src/error_and_NA_insights/missing_data_distribution.R,
+#and src/merging_opta_and_oddsportal/merging_opta_and_oddsportal.R in R
 library(dplyr)
 library(readr)
 library(stringr)
@@ -10,7 +10,7 @@ football_matches <- read_csv(here("data", "merged", "football_matches.csv"))
 opta_db <- read_csv(here("data", "scraping_logs", "opta_database.csv"))
 oddsportal_db <- read_csv(here("data", "scraping_logs", "oddsportal_database.csv"))
 
-# Renaming Possibly Misleading Variables
+# Renaming HTML variables appropriately
 opta_db <- opta_db %>%
   rename(html_opta = match_id)
 oddsportal_db <- oddsportal_db %>%
