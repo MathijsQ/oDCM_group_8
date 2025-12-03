@@ -4,11 +4,11 @@ library(dplyr)
 library(readr)
 library(stringr)
 library(ggplot2)
+library(here)
 
-football_matches <- read_csv("data/merged/football_matches.csv")
-opta_db <- read_csv("data/scraping_logs/opta_database.csv")
-oddsportal_db <- read_csv("data/scraping_logs/oddsportal_database.csv")
-
+football_matches <- read_csv(here("data", "merged", "football_matches.csv"))
+opta_db <- read_csv(here("data", "scraping_logs", "opta_database.csv"))
+oddsportal_db <- read_csv(here("data", "scraping_logs", "oddsportal_database.csv"))
 #opta_db: match_id column is the scraping ID, which corresponds to the oddsportal_matched_opta$Filename column, but without the .html at the end
 #oddsportal_db: scrape_id column is the scraping ID, which is the same as the $scraping_id in the bookmaker_params.csv file derived from the fit_bivariate_poisson.R file
 

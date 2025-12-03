@@ -2,9 +2,11 @@ library(dplyr)
 library(stringr)
 library(readr)
 library(lubridate)
+library(here)
 
-opta <- read_csv("data/opta/opta_standardized.csv")
-oddsportal <- read_csv("data/oddsportal/oddsportal_standardized.csv")
+
+opta <- read_csv(here("data", "opta", "opta_standardized.csv"))
+oddsportal <- read_csv(here("data", "oddsportal", "oddsportal_standardized.csv"))
 
 # ===========
 # ODDSPORTAL
