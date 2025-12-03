@@ -6,7 +6,7 @@ library(stringr)
 library(ggplot2)
 library(here)
 
-football_matches <- read_csv(here("data", "merged", "football_matches.csv"))
+football_matches <- read_csv(here("data", "merged_opta_oddsportal", "football_matches.csv"))
 opta_db <- read_csv(here("data", "scraping_logs", "opta_database.csv"))
 oddsportal_db <- read_csv(here("data", "scraping_logs", "oddsportal_database.csv"))
 

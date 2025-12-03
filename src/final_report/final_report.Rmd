@@ -213,10 +213,10 @@ football_matches <- football_matches %>%
       str_remove("^ou_") %>%
       str_remove("\\.html$")
   )
-if (!dir.exists(here("data", "merged"))) {
-  dir.create(here("data", "merged"), recursive = TRUE)
+if (!dir.exists(here("data", "merged_opta_oddsportal"))) {
+  dir.create(here("data", "merged_opta_oddsportal"), recursive = TRUE)
 }
-write_csv(football_matches, here("data", "merged", "football_matches.csv"))
+write_csv(football_matches, here("data", "merged_opta_oddsportal", "football_matches.csv"))
 ```
 
 ```{r error-distribution, include=FALSE}
