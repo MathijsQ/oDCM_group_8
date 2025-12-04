@@ -36,7 +36,10 @@ oddsportal <- oddsportal %>%
 # Join Asian Handicap timestamps (most recent) from error count data base ("oddsportal_db") to OddsPortal raw dataset
 oddsportal <- oddsportal %>%
   left_join(oddsportal_db %>% select(html_oddsportal, timestamp_ah),
-    by = "html_oddsportal")
+    by = "html_oddsportal")%>%
+	rename(
+		timestamp = timestamp_ah
+	)
 
 # =====
 # OPTA
