@@ -34,7 +34,7 @@ oddsportal <- oddsportal[oddsportal$match_id %in% opta$match_id, ]
 # MERGE PROCESSED OPTA PLAYER STATS AND 
 # ODDSPORTAL DATASETS INTO football_matches
 # ==========================================
-football_matches <- merge(opta[c('match_id', 'HomeGoals', 'AwayGoals')],oddsportal,
+football_matches <- merge(opta[c('match_id', 'HomeGoals', 'AwayGoals', 'Competition')],oddsportal,
 						  by = c('match_id'),
 						  all= FALSE)
 
