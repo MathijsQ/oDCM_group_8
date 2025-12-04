@@ -87,3 +87,6 @@ mean(data$tail_probability)
 
 competition_bias <- lm(tail_probability ~ Competition, data=data)
 summary(competition_bias)
+
+# ====== OUTPUT =======
+write_csv(data, here('data', 'merged_opta_oddsportal', 'results_params_tail_probabilities.csv'))
