@@ -1,0 +1,252 @@
+---
+title: "Basic sample statistics opta"
+output:
+  pdf_document: default
+  html_document: default
+date: "2025-11-30"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+# Load the libraries 
+
+```{r}
+library(tidyverse)
+library(stringr)
+library(lubridate)
+library(readr)
+library(dplyr)
+library(knitr)
+library(here)
+```
+
+# Load the dataset
+
+```{r}
+opta <- read_csv(here("data", "opta", "opta_standardized.csv"))
+```
+# Total goals
+
+We create a new variable total_goals where we calculate the total goals per match.
+
+```{r}
+opta <- opta %>%
+  mutate(total_goals = HomeGoals + AwayGoals)
+```
+
+## Distribution of total goals per match
+
+```{r}
+total_goals <- opta %>%
+  count(total_goals) %>%
+  mutate(percentage = round((n / sum(n) * 100), 2)) 
+ 
+
+total_goals %>%
+  kable(
+    col.names = c("Total goals per match", "Frequency", "Percentage (%)"),
+    caption = "Distribution of total goals per match")
+
+```    
+
+```{r}
+ggplot(total_goals, aes(x=total_goals, y=n)) +
+  geom_col(fill="blue", color="white") + 
+  geom_text(aes(label=n), vjust= -0.5, size=3) +
+  scale_x_continuous(breaks = 0:max(opta$total_goals)) +
+labs(title = "Distribution of the total goals per match",
+x = "Total goals per match", y = "Frequency")
+
+
+```
+
+```{r}
+summary(opta$total_goals)
+```
+
+We can observe from these statistics that in around 5% of the matches none of the teams scored a goal. The most common amount of goals per match is 2 and 3. The maximum amount of goals that got scored in one match is 11 goals. Furthermore, on average 2.877 goals got scored per match.
+
+
+# Goal difference between teams
+
+We create a new variable difference_goals where we calculate the absolute value of the difference in goals between the home team and away team.
+
+```{r}
+opta <- opta %>%
+  mutate(difference_goals = abs(HomeGoals - AwayGoals))
+```
+
+## Distribution of goal difference between teams
+
+```{r}
+difference_goals <- opta %>%
+  count(difference_goals) %>%
+  mutate(percentage = round((n / sum(n) * 100), 2)) 
+
+difference_goals %>%
+  kable(
+    col.names = c("Absolute goal difference", "Frequency", "Percentage (%)"),
+    caption = "Distribution of absolute goal difference")
+
+```
+```{r}
+ggplot(difference_goals, aes(x=difference_goals, y=n)) +
+  geom_col(fill="blue", color="white") + 
+  geom_text(aes(label=n), vjust= -0.5, size=3) +
+  scale_x_continuous(breaks = 0:max(opta$difference_goals)) +
+labs(title = "Distribution of goal difference between teams ",
+x = "Goal difference per match", y = "Frequency")
+
+```
+
+```{r}
+summary(opta$difference_goals)
+```
+
+From these statistics we can conclude that the most common goal difference between the two playing teams is a goal difference of 1, occuring in 38.22% of the matches. A goal difference of 0 (tie) or 2 also occur in one out of five matches. The maximum goal difference we observe is a goal difference of 8 goals between the two teams. And the mean goal difference is 1.409.
+
+
+# Home team vs away team win
+
+We created three new dummy variables home_win, away_win and draw. If the home team wins the variable home_win will be 1, otherwise 0. If the away team wins the variable away_win will be 1, otherwise 0. And if the match ends up in a tie, the variable tie will be 1, otherwise 0. 
+
+```{r}
+opta <- opta %>% 
+mutate(home_win = if_else(HomeGoals > AwayGoals, 1, 0),
+away_win = if_else(AwayGoals > HomeGoals, 1, 0),
+tie = if_else(HomeGoals == AwayGoals, 1, 0))
+```
+
+## Distribution of match results
+```{r}
+match_results <- opta %>%
+summarise(
+  home_win = sum(home_win),
+  away_win = sum(away_win),
+  tie = sum(tie)
+) %>%
+  pivot_longer(
+    cols = everything(),
+    names_to = "Match_result",
+    values_to = "Frequency"
+  ) %>%
+  mutate(Percentage = round((Frequency / sum(Frequency) * 100), 2))
+
+match_results
+```
+## 
+
+```{r}
+match_results$Match_result <- factor(
+  match_results$Match_result, 
+  levels = c("home_win", "away_win", "tie")
+)
+
+ggplot(match_results, aes(x=Match_result, y=Frequency, fill=Match_result)) +
+  geom_bar(stat="identity", width=0.7) +
+  geom_text(aes(label = Frequency),
+            vjust = -0.5, size = 3) + 
+  labs(title = "Distribution of match results",
+       x = "Match result",
+       y = "Frequency") +
+  scale_fill_discrete(
+    name = "Match result",
+    labels = c(
+      "home_win" = "Home wins",
+      "away_win" = "Away wins",
+      "tie" = "Ties"
+    ))
+
+```
+
+We can observe from these statistics that in 43.57% of the matches the home team wins, in 32.68% the away team wins and in 23.76% there is a tie. 
+
+# Differences per competition
+
+```{r}
+competitions <- opta %>% 
+  group_by(Competition) %>%
+  summarise(
+    total_matches = n(),
+    total_goals = sum(total_goals),
+    avg_goals_per_match = round(sum(total_goals) / n(), 2),
+    home_wins = sum(home_win),
+    away_wins = sum(away_win),
+    ties = sum(tie),
+    percentage_home_wins  = round((home_wins / n()) * 100, 2),
+    percentage_away_wins  = round((away_wins / n()) * 100, 2),
+    percentage_ties  = round((ties / n()) * 100, 2),
+  )
+
+competitions
+
+```
+## Average goals per match by competition
+
+```{r}
+  ggplot(competitions, aes(x=reorder(Competition, -avg_goals_per_match), y=avg_goals_per_match, fill=Competition)) +
+  geom_col() +
+  geom_text(aes(label = round(avg_goals_per_match, 2)),
+            vjust = -0.5, size = 3) +
+  labs(
+    title = "Average goals per match by competition",
+    x = "Competition",
+    y = "Average goals per match"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+```
+We see that the Champion's League is the competition with the highest average of goals per match (3.27), while Serie A has the fewest goals per match on average (2.56).
+
+## Relative distribution of match results by competition
+```{r}
+competitions_long <- competitions %>%
+  select(Competition,
+         percentage_home_wins,
+         percentage_away_wins,
+         percentage_ties) %>%
+  pivot_longer(
+    cols = starts_with("percentage"),
+    names_to = "Result",
+    values_to = "Percentage"
+  ) 
+
+match_results$Match_result <- factor(
+  match_results$Match_result, 
+  levels = c("home_win", "away_win", "tie")
+)
+
+
+ggplot(competitions_long, aes(x = reorder(Competition, -Percentage), y= Percentage, fill = Result)) +
+  geom_col(position = position_dodge(width = 0.9)) +
+  geom_text(aes(label = sprintf('%.2f', Percentage)),
+          position = position_dodge(width = 0.9),
+          vjust = -0.25, size=3) +
+  labs(
+    title = "Relative distribution of match results by competition",
+    x = "Competition",
+    y = "Percentage (%)",
+    fill = "Match result"
+  ) +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1)) +
+  scale_fill_discrete(
+    name = "Match result",
+    labels = c(
+      "percentage_home_wins" = "Home wins",
+      "percentage_away_wins" = "Away wins",
+      "percentage_ties" = "Ties"
+    )
+  )
+
+```
+
+
+We can observe that the Champion's League has the largest percentage of the home team winning, namely in 51.32% of the matches.The German competition Bundesliga has the lowest percentage of the home winning, where in only 38.56% of the matches the home team won the match. 
+
+The Bundesliga also has the highest percentage of the away team winning, while the Europa League has the lowest. 
+
+We also see that the Italian competition Serie A has the highest relative amount of ties compared to all the leagues, while the Champion's League has the lowest. 
