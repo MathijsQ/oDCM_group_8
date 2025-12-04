@@ -6,29 +6,34 @@ library(stringr)
 library(ggplot2)
 library(here)
 
-football_matches <- read_csv(here("data", "merged_opta_oddsportal", "football_matches.csv"))
+opta <- read_csv(here("data", "opta", "opta_standardized.csv"))
+oddsportal <- read_csv(here("data", "oddsportal", "oddsportal_standardized.csv"))
 opta_db <- read_csv(here("data", "scraping_logs", "opta_database.csv"))
 oddsportal_db <- read_csv(here("data", "scraping_logs", "oddsportal_database.csv"))
 
-# Renaming HTML variables appropriately
+# Renaming HTML variables from databases with scraping error counts appropriately
 opta_db <- opta_db %>%
   rename(html_opta = match_id)
 oddsportal_db <- oddsportal_db %>%
   rename(html_oddsportal = scrape_id)
 
-# Selecting only variables of interest for error distribution analysis
-temp_errors <- football_matches %>%
-  select(-KickoffRaw, -Market, -HomeOdd, -AwayOdd, -HomeGoals, -AwayGoals) %>%
-  distinct(.)
-
 #==================================================
 # ODDSPORTAL ERROR DISTRIBUTION SUMMARY STATISTICS
 #==================================================
-errors_oddsportal <- temp_errors %>%
-  select(-html_opta) %>%  # columns to keep from errordistr
-  left_join(
-    oddsportal_db %>% 
-      select(-competition),    # columns to keep from oddsportal_db
+# Create html_oddsportal variable from Filename variable (remove "ah_"/"ou_" prefix and ".html" suffix)
+oddsportal <- oddsportal %>%
+  mutate(
+    html_oddsportal = Filename %>%
+      str_remove("^ah_") %>%
+      str_remove("^ou_") %>%
+      str_remove("\\.html$")
+  ) %>%
+  select(Competition, html_oddsportal) %>%
+  distinct(.)
+# Join OddsPortal scraped HTMLs (competition each belongs to) with OddsPortal error count database 
+errors_oddsportal <- oddsportal %>%
+  left_join(oddsportal_db %>%
+              select(-competition),
     by = "html_oddsportal")
 
 # 1) Frequency distribution of errors per league
@@ -63,11 +68,16 @@ ggsave(here("data", "oddsportal", "errorcountdistr_oddsportal.png"), plot = erro
 #=========================================================
 # OPTA PLAYER STATS ERROR DISTRIBUTION SUMMARY STATISTICS
 #=========================================================
-errors_opta <- temp_errors %>%
-  select(-html_oddsportal) %>%  # columns to keep from errordistr
-  left_join(
-    opta_db %>% 
-      select(-competition),    # columns to keep from oddsportal_db
+# Create html_opta variable from Filename variable (remove ".html" suffix)
+opta <- opta %>%
+  mutate(
+    html_opta = str_remove(Filename, "\\.html$")) %>%
+  select(Competition, html_opta) %>%
+  distinct(.)
+# Join Opta scraped HTMLs (competition each belongs to) with Opta error count database 
+errors_opta <- opta %>%
+  left_join(opta_db %>%
+              select(-competition),
     by = "html_opta")
 
 # 1) Frequency distribution of errors per league
