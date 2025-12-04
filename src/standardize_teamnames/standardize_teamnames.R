@@ -9,99 +9,100 @@ library(dotenv)
 library(readr)
 library(here)
 
+# Ensure local directories exist
+dir.create(here("data", "opta"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here("data", "oddsportal"), recursive = TRUE, showWarnings = FALSE)
+
 # === INPUT ===
 
-# Download the most up to data data locally
-source(here('src', 'merging_data', 'merging_data.R'))
-
-# Load opta and oddsportal data into environment
-opta <- read_csv(here('data', 'opta', 'opta_merged.csv'))
-oddsportal <- read_csv(here('data', 'oddsportal', 'oddsportal_merged.csv'))
+# Load Opta and OddsPortal data into environment
+opta       <- read_csv(here("data", "opta", "opta_merged.csv"))
+oddsportal <- read_csv(here("data", "oddsportal", "oddsportal_merged.csv"))
 
 # === TRANSFORMATION ===
 
-# Parse kickoffs
-opta$kickoff <- dmy_hm(opta$KickoffTimeRaw)
+# Parse kickoff times
+opta$kickoff       <- dmy_hm(opta$KickoffTimeRaw)
 oddsportal$kickoff <- dmy_hm(oddsportal$KickoffRaw)
 
-# Normalise competition names function
+# Normalise competition names
 normalize_comp <- function(x) {
 	case_when(
-		str_detect(x, "Premier League") ~ "Premier League",
-		str_detect(x, "Bundesliga")     ~ "Bundesliga",
-		str_detect(x, "Serie A")        ~ "Serie A",
-		str_detect(x, "La.?Liga|Primera Div") ~ "La Liga",
-		str_detect(x, "Ligue 1")        ~ "Ligue 1",
-		str_detect(x, "Champions League") ~ "Champions League",
-		str_detect(x, "Europa League")   ~ "Europa League",
-		TRUE ~ x
+		str_detect(x, "Premier League")           ~ "Premier League",
+		str_detect(x, "Bundesliga")               ~ "Bundesliga",
+		str_detect(x, "Serie A")                  ~ "Serie A",
+		str_detect(x, "La.?Liga|Primera Div")     ~ "La Liga",
+		str_detect(x, "Ligue 1")                  ~ "Ligue 1",
+		str_detect(x, "Champions League")         ~ "Champions League",
+		str_detect(x, "Europa League")            ~ "Europa League",
+		TRUE                                      ~ x
 	)
 }
 
-# Apply function to both Competition columns
-opta$Competition <- normalize_comp(opta$Competition)
+# Apply normalization to competition columns
+opta$Competition       <- normalize_comp(opta$Competition)
 oddsportal$Competition <- normalize_comp(oddsportal$Competition)
 
-# Create list of unique teamnames
+# Create list of unique team names (Opta)
 unique_teams_opta <- unique(c(opta$HomeTeam, opta$AwayTeam))
 
-# === Pivotting Oddsportal data ===
+# === PIVOTING ODDSPORTAL DATA ===
 
-# Create temporary unique id
+# Create temporary unique id from filename
 oddsportal$unique_id <- substr(oddsportal$Filename, 4, nchar(oddsportal$Filename))
 
-# Split data into _asian and _over_under markets
-oddsportal_asian <- oddsportal%>%filter(str_starts(Filename, "ah_"))
-oddsportal_over_under <- oddsportal%>%filter(str_starts(Filename, "ou_"))
+# Split data into Asian handicap and Over/Under markets
+oddsportal_asian       <- oddsportal %>% filter(str_starts(Filename, "ah_"))
+oddsportal_over_under  <- oddsportal %>% filter(str_starts(Filename, "ou_"))
 
-	# Create wide data for asian handicap market
-oddsportal_asian_wide <- oddsportal_asian%>%
+# Create wide data for Asian handicap market
+oddsportal_asian_wide <- oddsportal_asian %>%
 	pivot_wider(
-		id_cols = c(Filename, unique_id, HomeTeam, AwayTeam, Competition, kickoff),
-		names_from = Market,
+		id_cols     = c(Filename, unique_id, HomeTeam, AwayTeam, Competition, kickoff),
+		names_from  = Market,
 		values_from = c(HomeOdd, AwayOdd),
 		values_fill = NA
 	)
 
-	# Create wide data for over/under market
-oddsportal_over_under_wide <- oddsportal_over_under%>%rename(
-	over = HomeOdd,
-	under = AwayOdd 			# Rename odd variables
-)%>%
+# Create wide data for Over/Under market
+oddsportal_over_under_wide <- oddsportal_over_under %>%
+	rename(
+		over  = HomeOdd,
+		under = AwayOdd   # Rename odd variables
+	) %>%
 	pivot_wider(
-		id_cols = c(Filename, unique_id,HomeTeam, AwayTeam, Competition, kickoff),
-		names_from = Market,
+		id_cols     = c(Filename, unique_id, HomeTeam, AwayTeam, Competition, kickoff),
+		names_from  = Market,
 		values_from = c(over, under),
 		values_fill = NA
-	)							# Pivot wider
+	)   # Pivot wider
 
+# ======= FUNCTION FOR COLLECTING TEAM NAMES =========
 
-
-# ======= FUNCTION FOR COLLECTION TEAMNAMES =========
 build_lookup_from_seed <- function(opta, oddsportal, seed_opta, seed_odds) {
 	library(dplyr)
 	
-	# lookup table starts with the one known pair
+	# Lookup table starts with one known pair
 	lookup <- tibble(
 		opta_name = seed_opta,
 		odds_name = seed_odds
 	)
 	
-	# queue of pairs to expand
+	# Queue of pairs to expand
 	queue <- lookup
 	
-	# keep track of which Opta teams we have already expanded
+	# Keep track of which Opta teams we have already expanded
 	processed_opta <- character(0)
 	
 	while (nrow(queue) > 0) {
-		# take first pair from queue
+		# Take first pair from queue
 		current <- queue[1, ]
 		queue   <- queue[-1, , drop = FALSE]
 		
 		opta_team <- current$opta_name
 		odds_team <- current$odds_name
 		
-		# skip if we've already expanded this team
+		# Skip if we've already expanded this team
 		if (opta_team %in% processed_opta) {
 			next
 		}
@@ -115,7 +116,7 @@ build_lookup_from_seed <- function(opta, oddsportal, seed_opta, seed_odds) {
 			next
 		}
 		
-		# collect new pairs from these matches
+		# Collect new pairs from these matches
 		new_pairs_list <- vector("list", nrow(opta_matches))
 		
 		for (i in seq_len(nrow(opta_matches))) {
@@ -124,7 +125,7 @@ build_lookup_from_seed <- function(opta, oddsportal, seed_opta, seed_odds) {
 			comp <- m$Competition
 			ko   <- m$kickoff
 			
-			# opponent in Opta
+			# Opponent in Opta
 			opp_opta <- if (m$HomeTeam == opta_team) m$AwayTeam else m$HomeTeam
 			
 			# ---- STEP B: corresponding match in OddsPortal ----
@@ -135,7 +136,7 @@ build_lookup_from_seed <- function(opta, oddsportal, seed_opta, seed_odds) {
 					(HomeTeam == odds_team | AwayTeam == odds_team)
 				)
 			
-			# only trust if we find exactly one
+			# Only trust if we find exactly one
 			if (nrow(odds_matches) == 1) {
 				o <- odds_matches[1, ]
 				
@@ -158,54 +159,63 @@ build_lookup_from_seed <- function(opta, oddsportal, seed_opta, seed_odds) {
 			}
 		}
 		
-		# bind all proposed pairs from this expansion
+		# Bind all proposed pairs from this expansion
 		new_pairs <- bind_rows(new_pairs_list) %>%
 			distinct()
 		
-		# remove already known mappings
-		new_pairs <- anti_join(new_pairs, lookup,
-							   by = c("opta_name", "odds_name"))
+		# Remove already known mappings
+		new_pairs <- anti_join(
+			new_pairs,
+			lookup,
+			by = c("opta_name", "odds_name")
+		)
 		
-		# add them to lookup and to queue
+		# Add them to lookup and to queue
 		if (nrow(new_pairs) > 0) {
 			lookup <- bind_rows(lookup, new_pairs)
 			queue  <- bind_rows(queue, new_pairs)
 		}
 		
-		# mark this team as processed
+		# Mark this team as processed
 		processed_opta <- c(processed_opta, opta_team)
 	}
 	
 	lookup %>% distinct()
 }
 
-team_lookup <- build_lookup_from_seed(opta=opta, oddsportal = oddsportal_over_under_wide, "Paris Saint-Germain FC","PSG")
+team_lookup <- build_lookup_from_seed(
+	opta       = opta,
+	oddsportal = oddsportal_over_under_wide,
+	"Paris Saint-Germain FC",
+	"PSG"
+)
 
-# Import both raw datasets again and standardize teamnames and compnames
-opta <- read_csv(here('data', 'opta', 'opta_merged.csv'))
-oddsportal <- read_csv(here('data', 'oddsportal', 'oddsportal_merged.csv'))
+# Import both raw datasets again and standardize team names and competition names
+opta       <- read_csv(here("data", "opta", "opta_merged.csv"))
+oddsportal <- read_csv(here("data", "oddsportal", "oddsportal_merged.csv"))
 
 # Standardize competition names
-opta$Competition <- normalize_comp(opta$Competition)
+opta$Competition       <- normalize_comp(opta$Competition)
 oddsportal$Competition <- normalize_comp(oddsportal$Competition)
 
-# Standardize teamnames (use oddsportal teamnames as source of truth)
+# Standardize team names (use OddsPortal team names as source of truth)
+
 # Standardize HomeTeam
 opta <- opta %>%
-	filter(HomeTeam%in% team_lookup$opta_name)%>%
+	filter(HomeTeam %in% team_lookup$opta_name) %>%
 	left_join(team_lookup, by = c("HomeTeam" = "opta_name")) %>%
 	mutate(HomeTeam = coalesce(odds_name, HomeTeam)) %>%
 	select(-odds_name)
 
 # Standardize AwayTeam
 opta <- opta %>%
-	filter(AwayTeam%in% team_lookup$opta_name)%>%
+	filter(AwayTeam %in% team_lookup$opta_name) %>%
 	left_join(team_lookup, by = c("AwayTeam" = "opta_name")) %>%
 	mutate(AwayTeam = coalesce(odds_name, AwayTeam)) %>%
 	select(-odds_name)
 
-# Write csv for the standardized datasets
-write_csv(opta, here('data', 'opta', 'opta_standardized.csv'))
-write_csv(oddsportal, here('data', 'oddsportal', 'oddsportal_standardized.csv'))
+# === OUTPUT ===
 
-
+# Write CSV for the standardized datasets
+write_csv(opta,       here("data", "opta", "opta_standardized.csv"))
+write_csv(oddsportal, here("data", "oddsportal", "oddsportal_standardized.csv"))
