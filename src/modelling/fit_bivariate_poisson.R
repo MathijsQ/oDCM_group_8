@@ -44,7 +44,7 @@ oddsportal$kickoff <- dmy_hm(oddsportal$KickoffRaw)
 # MISSING DATA FILTERING
 # =====================
 
-# Overview of missingness (for inspection / logging)
+# Overview of missingness (for diagnostics)
 missing_table <- oddsportal %>%
 	summarise(across(everything(), ~ sum(is.na(.))))
 
@@ -60,7 +60,7 @@ oddsportal <- oddsportal %>%
 # CREATE MATCH_ID
 # =====================
 
-# format of match_id: hashed(hometeam_awayteam_ddmmyyyy)
+# match_id format: "hometeam_awayteam_ddmmyyyy" (lowercase, no spaces)
 oddsportal <- oddsportal %>%
 	mutate(
 		home_clean = gsub(" ", "", HomeTeam),
@@ -72,9 +72,10 @@ oddsportal <- oddsportal %>%
 	select(-home_clean, -away_clean, -date_clean)
 
 # =====================
-# KEEP SCRAPING_ID WITH DATA FOR TIMESTAMP INTEGRATION LATER ON
+# SCRAPING_ID FOR TIMESTAMP INTEGRATION
 # =====================
 
+# scraping_id is derived from the HTML filename (used later to merge with logs)
 oddsportal <- oddsportal %>%
 	mutate(
 		scraping_id = substr(Filename, 4, nchar(Filename)),      # remove first 3 chars
@@ -86,10 +87,10 @@ oddsportal <- oddsportal %>%
 # LONG FORMAT + MARKET / LINE / SIDE
 # =====================
 
-# Build a long format with:
-#   - market = "asian" or "over_under"
-#   - side   = "home"/"away" for AH, "over"/"under" for O/U
-#   - line_value = numeric handicap/total (home-based for AH; absolute for totals)
+# Build long format with:
+#   - market: "asian" vs "over_under"
+#   - side:   "home"/"away" (AH) or "over"/"under" (O/U)
+#   - line_value: numeric handicap/total (signed for AH, absolute for O/U)
 oddsportal_long <- oddsportal %>%
 	mutate(
 		market = ifelse(str_starts(Market, "Asian"), "asian", "over_under")
@@ -107,7 +108,7 @@ oddsportal_long <- oddsportal %>%
 			market == "over_under" & side_raw == "AwayOdd" ~ "under"
 		)
 	) %>%
-	# Extract the numeric line embedded in Market (e.g. "Asian Handicap -1.5")
+	# Extract numeric line embedded in Market (e.g. "Asian Handicap -1.5")
 	mutate(
 		line_raw = str_extract(Market, "[+-]?[0-9]+(?:\\.[0-9]+)?")
 	) %>%
@@ -134,34 +135,34 @@ oddsportal_long <- oddsportal %>%
 	)
 
 # =====================
-# REMOVE MISSING / BAD ODDS & NORMALISE MARGINS
+# REMOVE BAD ODDS & NORMALISE MARGINS
 # =====================
 
-# 1) Remove placeholder '-' odds and ensure numeric
-# 2) Keep only lines where both sides (e.g. home/away or over/under) are present
+# 1) Drop placeholder "-" odds and coerce to numeric
+# 2) Keep only lines with both sides quoted (home/away or over/under)
 oddsportal_long <- oddsportal_long %>%
 	filter(odds != "-") %>%
 	mutate(odds = as.numeric(odds)) %>%
 	group_by(match_id, market, line_value) %>%
-	filter(n() == 2) %>%        # exactly 2 sides quoted for each line
+	filter(n() == 2) %>%        # exactly 2 sides quoted
 	ungroup()
 
 # Remove bookmaker margin:
-#   - p_raw  = 1 / odds (implied probability with margin)
-#   - p_book = p_raw / sum(p_raw) = fair probability (margin removed)
+#   p_raw  = 1 / odds            (implied probability with margin)
+#   p_book = p_raw / sum(p_raw)  (fair probability, margin removed)
 oddsportal_long <- oddsportal_long %>%
 	group_by(match_id, market, line_value) %>%
 	mutate(
-		p_raw    = 1 / odds,
-		p_sum    = sum(p_raw),
-		p_book   = p_raw / p_sum,      # fair probabilities
-		odds_fair = 1 / p_book         # fair decimal odds
+		p_raw     = 1 / odds,
+		p_sum     = sum(p_raw),
+		p_book    = p_raw / p_sum,      # fair probabilities
+		odds_fair = 1 / p_book          # implied fair odds
 	) %>%
 	ungroup()
 
 # Keep only half-lines:
-#   - AH: ..., -1.5, -0.5, 0.5, 1.5, ...
-#   - O/U: 0.5, 1.5, 2.5, ...
+#   AH: ..., -1.5, -0.5, 0.5, 1.5, ...
+#   O/U: 0.5, 1.5, 2.5, ...
 oddsportal_long_halves <- oddsportal_long %>%
 	filter(abs((line_value %% 1) - 0.5) < 1e-6)
 
@@ -173,7 +174,7 @@ oddsportal_long_halves <- oddsportal_long %>%
 MAX_GOALS <- 15
 
 # Bivariate Poisson PMF:
-#   X = home goals, Y = away goals, with parameters (lambda1, lambda2, lambda3)
+#   X = home goals, Y = away goals with parameters (lambda1, lambda2, lambda3)
 #   Returns a (max_goals+1) x (max_goals+1) matrix of P(X = x, Y = y)
 bivpois_pmf <- function(lambda1, lambda2, lambda3, max_goals = MAX_GOALS) {
 	P <- matrix(0, nrow = max_goals + 1, ncol = max_goals + 1)
@@ -201,14 +202,14 @@ bivpois_pmf <- function(lambda1, lambda2, lambda3, max_goals = MAX_GOALS) {
 }
 
 # Probability for O/U half-lines given P:
-#   - line: total goals threshold (e.g. 2.5)
-#   - side: "over" or "under"
+#   line: total-goals threshold (e.g. 2.5)
+#   side: "over" or "under"
 prob_ou <- function(P, line, side = c("over", "under")) {
 	side <- match.arg(side)
 	max_goals <- nrow(P) - 1
 	goals <- 0:max_goals
 	
-	# total goals matrix: X + Y
+	# Total goals matrix: X + Y
 	total_mat <- outer(goals, goals, "+")
 	
 	if (side == "over") {
@@ -221,19 +222,18 @@ prob_ou <- function(P, line, side = c("over", "under")) {
 }
 
 # Probability for AH half-lines given P:
-#   - h_home: handicap applied to home team (e.g. -0.5, +1.5, ...)
-#   - side: "home" or "away" (which bet we consider)
-# Logic:
-#   home wins bet if (X + h_home) > Y  <=> X - Y > -h_home
+#   h_home: handicap applied to home team (e.g. -0.5, +1.5, ...)
+#   side:   "home" or "away" (which bet we consider)
+# Home bet wins if (X + h_home) > Y  ⇔ X - Y > -h_home
 prob_ah <- function(P, h_home, side = c("home", "away")) {
 	side <- match.arg(side)
 	max_goals <- nrow(P) - 1
 	goals <- 0:max_goals
 	
-	# goal difference matrix: diff = X - Y
+	# Goal difference matrix: diff = X - Y
 	diff_mat <- outer(goals, goals, "-")
 	
-	# home wins if diff > -h_home
+	# Home side wins bet if diff > -h_home
 	thr <- -h_home
 	p_home_win <- sum(P[diff_mat > thr])
 	
@@ -247,21 +247,21 @@ prob_ah <- function(P, h_home, side = c("home", "away")) {
 	}
 }
 
-# Loss function for one match:
-#   - par = c(lambda1, lambda2, lambda3)
-#   - match_df: all AH + O/U half-lines for a single unique_id
-#   Returns sum of squared errors between p_model and p_book
+# Loss for one match:
+#   par      = (lambda1, lambda2, lambda3)
+#   match_df = all AH + O/U half-lines for a match
+# Returns SSE between model probabilities and bookmaker probabilities
 single_match_loss <- function(par, match_df, max_goals = MAX_GOALS) {
 	lambda1 <- par[1]
 	lambda2 <- par[2]
 	lambda3 <- par[3]
 	
-	# Guard against invalid parameter values
+	# Penalise invalid parameter values
 	if (lambda1 <= 0 || lambda2 <= 0 || lambda3 < 0) {
 		return(1e6)  # large penalty
 	}
 	
-	# Build joint scoreline distribution for this parameter set
+	# Joint scoreline distribution for this parameter set
 	P <- bivpois_pmf(lambda1, lambda2, lambda3, max_goals = max_goals)
 	
 	# Compute model probabilities for each line
@@ -281,7 +281,7 @@ single_match_loss <- function(par, match_df, max_goals = MAX_GOALS) {
 		}
 	}
 	
-	# Drop lines where we couldn't compute model probability
+	# Drop lines where model or bookmaker probability is NA
 	valid  <- !is.na(p_model) & !is.na(match_df$p_book)
 	p_model <- p_model[valid]
 	p_book  <- match_df$p_book[valid]
@@ -294,7 +294,7 @@ single_match_loss <- function(par, match_df, max_goals = MAX_GOALS) {
 # PER-MATCH FITTING
 # =====================
 
-# Fit bivariate Poisson parameters for a single unique_id
+# Fit bivariate Poisson parameters for a single match_id
 fit_one_match <- function(id, data, max_goals = MAX_GOALS) {
 	match_df <- data %>% filter(match_id == id)
 	
@@ -302,16 +302,16 @@ fit_one_match <- function(id, data, max_goals = MAX_GOALS) {
 	n_ah    <- sum(match_df$market == "asian")
 	n_ou    <- sum(match_df$market == "over_under")
 	
-	# Basic metadata (assume constant within unique_id)
-	home_team <- first(match_df$home_team)
-	away_team <- first(match_df$away_team)
-	kickoff   <- first(match_df$kickoff)
+	# Basic metadata (assumed constant within match_id)
+	home_team   <- first(match_df$home_team)
+	away_team   <- first(match_df$away_team)
+	kickoff     <- first(match_df$kickoff)
 	scraping_id <- first(match_df$scraping_id)
 	
-	# Skip matches with too few lines to constrain the model
+	# Skip matches with too few lines to meaningfully constrain the model
 	if (n_lines < 4) {
 		return(tibble(
-			match_id   = id,
+			match_id    = id,
 			scraping_id = scraping_id,
 			home_team   = home_team,
 			away_team   = away_team,
@@ -346,7 +346,7 @@ fit_one_match <- function(id, data, max_goals = MAX_GOALS) {
 	# If optimisation fails, return NA params with diagnostics
 	if (inherits(fit, "try-error")) {
 		return(tibble(
-			match_id   = id,
+			match_id    = id,
 			scraping_id = scraping_id,
 			home_team   = home_team,
 			away_team   = away_team,
@@ -364,7 +364,7 @@ fit_one_match <- function(id, data, max_goals = MAX_GOALS) {
 	
 	# Successful fit: return parameters and diagnostics
 	tibble(
-		match_id   = id,
+		match_id    = id,
 		scraping_id = scraping_id,
 		home_team   = home_team,
 		away_team   = away_team,
@@ -380,7 +380,7 @@ fit_one_match <- function(id, data, max_goals = MAX_GOALS) {
 	)
 }
 
-# Vector of unique match ids to fit
+# Vector of unique match_ids to fit
 oddsportal_ids <- unique(oddsportal_long_halves$match_id)
 
 # Fit parameters for all matches
@@ -395,13 +395,13 @@ bookmaker_params <- map_dfr(
 
 # Join fitted parameters back onto the half-lines data
 odds_with_params <- oddsportal_long_halves %>%
-	select(-scraping_id)%>%
+	select(-scraping_id) %>%
 	inner_join(
 		bookmaker_params %>% select(match_id, scraping_id, lambda1, lambda2, lambda3),
 		by = "match_id"
 	)
 
-# Compute model probabilities and errors for all lines in a given match
+# For each match: compute model probabilities and errors per line
 compute_line_fits <- function(df, max_goals = MAX_GOALS) {
 	P <- bivpois_pmf(df$lambda1[1], df$lambda2[1], df$lambda3[1], max_goals)
 	
@@ -427,7 +427,7 @@ bookmaker_line_fits <- odds_with_params %>%
 	group_modify(~ compute_line_fits(.x)) %>%
 	ungroup()
 
-# For convenience: store absolute difference directly as p_diff
+# Convenience: absolute difference between bookmaker and model probabilities
 bookmaker_line_fits <- bookmaker_line_fits %>%
 	mutate(
 		p_diff = abs(p_book - p_model)
