@@ -91,9 +91,7 @@ data <- data %>%
 		)
 	)
 
-# Quick diagnostics: distribution and mean extremeness
-boxplot(data$tail_probability)
-mean(data$tail_probability)
+
 
 # Simple check for systematic competition differences in extremeness
 competition_bias <- lm(tail_probability ~ Competition, data = data)
