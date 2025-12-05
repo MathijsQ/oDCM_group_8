@@ -105,3 +105,5 @@ write_csv(
 	data,
 	here("data", "merged_opta_oddsportal", "results_params_tail_probabilities.csv")
 )
+
+paste0('.csv-file with computed tail probabilities created at: ', here("data", "merged_opta_oddsportal", "results_params_tail_probabilities.csv"))

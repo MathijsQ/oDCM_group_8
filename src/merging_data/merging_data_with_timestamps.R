@@ -5,6 +5,7 @@ library(here)
 
 # Ensure required directories exist
 dir.create(here("data", "opta"), recursive = TRUE, showWarnings = FALSE)
+dir.create(here("data", "oddsportal"), recursive = TRUE, showWarnings = FALSE)
 
 # === INPUT =================================================================
 # Raw datasets
@@ -57,3 +58,6 @@ opta <- opta %>%
 # === OUTPUT ===========================================================
 write_csv(opta, here("data", "opta", "opta_merged_with_timestamps.csv"))
 write_csv(oddsportal, here("data", "oddsportal", "oddsportal_merged_with_timestamps.csv"))
+
+paste0('raw data with timestamps csv files created at:', here("data", "opta", "opta_merged_with_timestamps.csv"))
+paste0('raw data with timestamps csv files created at:', here("data", "oddsportal", "oddsportal_merged_with_timestamps.csv"))

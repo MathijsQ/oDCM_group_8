@@ -448,3 +448,6 @@ write_csv(
 	bookmaker_params,
 	here("data", "oddsportal", "bookmaker_fitted_params.csv")
 )
+
+paste0('Csv-file with line-level model fit statistics created at: ', here("data", "oddsportal", "bookmaker_lines_fitted.csv"))
+paste0('Csv-file with fitted poisson parameters per match created at: ', here("data", "oddsportal", "bookmaker_fitted_params.csv"))

@@ -219,3 +219,6 @@ opta <- opta %>%
 # Write CSV for the standardized datasets
 write_csv(opta,       here("data", "opta", "opta_standardized.csv"))
 write_csv(oddsportal, here("data", "oddsportal", "oddsportal_standardized.csv"))
+
+paste0('standardized csv files with uniform team and comp names created at:', here("data", "opta", "opta_standardized.csv"))
+paste0('standardized csv files with uniform team and comp names created at:', here("data", "oddsportal", "oddsportal_standardized.csv"))

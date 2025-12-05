@@ -79,3 +79,6 @@ if (!dir.exists(here("data", "final_datasets"))) {
 
 write_csv(probabities, here('data', 'final_datasets', 'match_model_results.csv'))
 write_csv(odds, here('data', 'final_datasets', 'bookmaker_vs_model_odds.csv'))
+
+paste0('final dataset with tail probabilities and model parameters created at: ', here('data', 'final_datasets', 'match_model_results.csv'))
+paste0('final dataset with odd level comparison between bookmaker probabilities vs implied probabilities created at: ', here('data', 'final_datasets', 'bookmaker_vs_model_odds.csv'))
