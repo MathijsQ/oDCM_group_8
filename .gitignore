@@ -1,3 +1,68 @@
-# Use this file to keep certain files from being versioned (covered in the GitHub part of the course).
+########################################
+# R history / session files
+########################################
+.Rhistory
+.Rapp.history
+.RData
+.Ruserdata
 
+########################################
+# R temporary files
+########################################
+*.Rproj.user
+*.Rproj
+.Rproj.user/*
+.Rproj.user
+*.Rcheck/
+*.Rout
+*.o
+*.so
+*.dll
+
+# R Markdown temporary files
+*_cache/
+cache/
+*.utf8.md
+*.knit.md
+
+########################################
+# CSV, PDF, and other generated outputs
+########################################
+*.csv
+*.pdf
+*.png
+*.jpeg
+*.jpg
+*.svg
+*.html
+
+########################################
+# Python cache / temp files
+########################################
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.ipynb_checkpoints
+*.egg-info/
+*.egg
+*.log
+
+########################################
+# Mac / Windows system files
+########################################
 .DS_Store
+Thumbs.db
+
+########################################
+# IDE / Editor junk
+########################################
+.vscode/
+.idea/
+
+########################################
+# Environment files (sensitive)
+########################################
+.env
+*.env
+.env.*
