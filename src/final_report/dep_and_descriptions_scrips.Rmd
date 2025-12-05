@@ -11,13 +11,13 @@ knitr::opts_chunk$set(echo = TRUE)
 
 ## 6. Dependencies
 
-**Download the right packages**
+**Download the right packages in terminal**
 
 ```         
 pip install gspread google-auth python-dotenv selenium webdriver-manager beautifulsoup4 google-api-python-client google-auth-oauthlib google-auth-httplib2
 ```
 
-**Download all packages required**
+**Download all packages required in Rstudio**
 
 ```         
 required_packages <- c("tidyverse", "dplyr", "stringr", "lubridate", "googledrive", "dotenv", "readr", "here", "ggplot2", "tibble", "purrr", "digest")
