@@ -7,7 +7,7 @@
 # ----------------------------
 DATA_DIR_MERGED        := ../../data/merged_opta_oddsportal
 DATA_DIR_ODDSPORTAL    := ../../data/oddsportal
-DATA_DIR_FINAL         := ../../data/final_datasets
+DATA_DIR_FINAL         := ../../final_datasets
 
 # ----------------------------
 # Input Files
